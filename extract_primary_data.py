@@ -1,967 +1,599 @@
+
 import re
 from typing import List, Dict
 
-def extract_newborn_from_endt_12(text: str) -> Dict:
-    """Extract New Born data specifically from Endorsement No. 12/12a"""
-    newborn_data = {
-        "New Born Covered?": "No",
-        "New Born Covered": "No",
-        "Covered From": "Day 0",
-        "Is New Born Limit Applicable": "No",
-        "Sum Insured": "",
-        "% Limit Applicable On": "Sum Insured",
-        "Limit Percentage": "",
-        "Limit Amount": "",
-        "Applicability": "Lower",
-        "New Born Sum Insured": "Sum Insured",
-        "New Born % Limit": "",
-        "New Born Limit": "",
-        "New Born Applicability": "Lower",
-        "New Born % Limit Applicable On": "Sum Insured"
+
+def extract_age_ranges(text: str) -> Dict[str, Dict]:
+    """
+    Extract age ranges dynamically from policy text,
+    with proper defaults if no match is found.
+    """
+    age_ranges = {
+        "employee": {"min_years": 18, "min_months": 0, "max_years": 65, "max_months": 0},
+        "spouse": {"min_years": 18, "min_months": 0, "max_years": 65, "max_months": 0},
+        "children": {"min_years": 0, "min_months": 3, "max_years": 25, "max_months": 0},
+        "parents": {"min_years": 40, "min_months": 0, "max_years": 100, "max_months": 0}
+    }
+
+    # Employee / Spouse
+    employee_age_match = re.search(
+        r'employee.*?(?:age|years?)\s*(?:between|from|range)?\s*(\d+)\s*(?:to|-)\s*(\d+)',
+        text,
+        re.IGNORECASE
+    )
+    if employee_age_match:
+        min_age = int(employee_age_match.group(1))
+        max_age = int(employee_age_match.group(2))
+        age_ranges["employee"]["min_years"] = min_age
+        age_ranges["employee"]["max_years"] = max_age
+        age_ranges["spouse"]["min_years"] = min_age
+        age_ranges["spouse"]["max_years"] = max_age
+
+    # Children
+    children_age_match = re.search(
+        r'(?:children|dependent).*?(?:age|years?)\s*(?:between|from|range)?\s*(\d+)\s*(?:to|-)\s*(\d+)',
+        text,
+        re.IGNORECASE
+    )
+    if children_age_match:
+        min_age = int(children_age_match.group(1))
+        max_age = int(children_age_match.group(2))
+        age_ranges["children"]["min_years"] = min_age
+        age_ranges["children"]["max_years"] = max_age
+
+    # over X days pattern for children minimum
+    children_days_match = re.search(r'over\s+(\d+)\s+days?', text, re.IGNORECASE)
+    if children_days_match:
+        days = int(children_days_match.group(1))
+        months = days // 30
+        age_ranges["children"]["min_months"] = months
+
+    # Parents
+    parents_age_match = re.search(
+        r'(?:parents?|father|mother).*?(?:age|years?)\s*(?:between|from|range)?\s*(\d+)\s*(?:to|-)\s*(\d+)',
+        text,
+        re.IGNORECASE
+    )
+    if parents_age_match:
+        min_age = int(parents_age_match.group(1))
+        max_age = int(parents_age_match.group(2))
+        age_ranges["parents"]["min_years"] = min_age
+        age_ranges["parents"]["max_years"] = max_age
+
+    return age_ranges
+
+def extract_sublimit_info(text: str) -> Dict:
+    """Extract sublimit information from PDF text"""
+    sublimit_info = {
+        "applicable": "No",
+        "type": "",
+        "limit": 0
     }
     
-    # Extract Endorsement No. 12/12a section
-    endorsement_12_match = re.search(r'Endt\.\s*No\.\s*12\s*(?:\(?a?\)?)?.*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
-    
-    if not endorsement_12_match:
-        return newborn_data
-    
-    endorsement_12_text = endorsement_12_match.group(0)
-    
-    # Check if New Born is covered
-    if re.search(r'new\s*born', endorsement_12_text, re.IGNORECASE) or \
-       re.search(r'newborn', endorsement_12_text, re.IGNORECASE) or \
-       re.search(r'new\s*Born', endorsement_12_text, re.IGNORECASE):
+    # Look for sublimit patterns
+    if re.search(r'sublimit', text, re.IGNORECASE):
+        sublimit_info["applicable"] = "Yes"
         
-        newborn_data["New Born Covered?"] = "Yes"
-        newborn_data["New Born Covered"] = "Yes"
-        
-        # Set default Covered From to "Day 0" as per instructions
-        newborn_data["Covered From"] = "Day 0"
-        
-        # Check if New Born Limit is applicable
-        if re.search(r'limit', endorsement_12_text, re.IGNORECASE) or \
-           re.search(r'amount', endorsement_12_text, re.IGNORECASE) or \
-           re.search(r'premium', endorsement_12_text, re.IGNORECASE) or \
-           re.search(r'deposit', endorsement_12_text, re.IGNORECASE):
-            newborn_data["Is New Born Limit Applicable"] = "Yes"
-            
-            # Set default Sum Insured dropdown to "Sum Insured"
-            newborn_data["Sum Insured"] = "Sum Insured"
-            newborn_data["New Born Sum Insured"] = "Sum Insured"
-            
-            # Set default % Limit Applicable On to "Sum Insured"
-            newborn_data["% Limit Applicable On"] = "Sum Insured"
-            newborn_data["New Born % Limit Applicable On"] = "Sum Insured"
-            
-            # Extract Sum Insured amount (from corporate floater or main policy)
-            sum_insured_match = re.search(r'limit of Rs\.([\d,]+)/- as Corporate floater', text, re.IGNORECASE)
-            if sum_insured_match:
-                sum_insured = sum_insured_match.group(1).replace(",", "")
-                # Store the numeric value for calculation
-                newborn_data["_sum_insured_numeric"] = sum_insured
-            
-            # Extract New Born Limit Amount from Policy PDF
-            newborn_limit_match = re.search(r'new\s*born.*?limit.*?Rs\.?([\d,]+)', endorsement_12_text, re.IGNORECASE)
-            if newborn_limit_match:
-                newborn_limit = newborn_limit_match.group(1).replace(",", "")
-                newborn_data["Limit Amount"] = newborn_limit
-                newborn_data["New Born Limit"] = newborn_limit
+        # Extract sublimit type
+        type_match = re.search(r'sublimit\s+(?:type|category)?\s*:?\s*([A-Za-z\s]+?)(?:\s+of\s+rs|\s+rs|$)', text, re.IGNORECASE)
+        if type_match:
+            extracted_type = type_match.group(1).strip()
+            # Remove "of" if it appears at the end
+            if extracted_type.endswith(" of"):
+                extracted_type = extracted_type[:-3].strip()
+            # If the extracted type is just "of", leave it blank
+            if extracted_type.lower() == "of":
+                sublimit_info["type"] = ""
             else:
-                # Look for general newborn amount
-                newborn_amount_match = re.search(r'new\s*born.*?amount.*?Rs\.?([\d,]+)', endorsement_12_text, re.IGNORECASE)
-                if newborn_amount_match:
-                    newborn_amount = newborn_amount_match.group(1).replace(",", "")
-                    newborn_data["Limit Amount"] = newborn_amount
-                    newborn_data["New Born Limit"] = newborn_amount
-                else:
-                    # Look for any amount mentioned in newborn context
-                    newborn_general_match = re.search(r'Rs\.?([\d,]+).*?new\s*born', endorsement_12_text, re.IGNORECASE)
-                    if newborn_general_match:
-                        newborn_amount = newborn_general_match.group(1).replace(",", "")
-                        newborn_data["Limit Amount"] = newborn_amount
-                        newborn_data["New Born Limit"] = newborn_amount
-            
-            # Calculate % Limit if both Sum Insured and New Born Limit are available
-            if newborn_data.get("_sum_insured_numeric") and newborn_data.get("Limit Amount"):
-                try:
-                    sum_insured_val = int(newborn_data["_sum_insured_numeric"])
-                    newborn_limit_val = int(newborn_data["Limit Amount"])
-                    if newborn_limit_val > 0:
-                        newborn_percentage = (sum_insured_val / newborn_limit_val) * 100
-                        newborn_data["Limit Percentage"] = f"{newborn_percentage:.1f}"
-                        newborn_data["New Born % Limit"] = f"{newborn_percentage:.1f}"
-                except (ValueError, TypeError):
-                    pass
-            
-            # Set default applicability to "Lower"
-            newborn_data["Applicability"] = "Lower"
-            newborn_data["New Born Applicability"] = "Lower"
-        else:
-            newborn_data["Is New Born Limit Applicable"] = "No"
+                sublimit_info["type"] = extracted_type
+        # If no type found, leave blank (don't set default)
+        
+        # Extract sublimit amount
+        limit_match = re.search(r'sublimit.*?Rs[\.:]?\s?([\d,]+)', text, re.IGNORECASE)
+        if limit_match:
+            sublimit_info["limit"] = int(limit_match.group(1).replace(',', ''))
     
-    return newborn_data
+    # Look for Endt. No. 5(ii) patterns for specific conditions like Cataract
+    endorsement_5ii_match = re.search(r'Endt\.\s*No\.\s*5\(ii\).*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
+    if endorsement_5ii_match:
+        endorsement_5ii_text = endorsement_5ii_match.group(0)
+        
+        # Look for specific conditions in the table
+        conditions = [
+            "Cataract",
+            "Treatment of mental illness, stress or psychological disorders and neurodegenerative disorders",
+            "Balloon Sinuplasty",
+            "Stem Cell therapy",
+            "Oral Chemotherapy, Immunotherapy",
+            "Bronchial Thermoplasty",
+            "vaporization of prostate",
+            "Intra Operative Neuro Monitoring",
+            "Intra vitreal injections"
+        ]
+        
+        for condition in conditions:
+            # Look for the condition in the table - more flexible pattern
+            condition_match = re.search(
+                rf'{re.escape(condition)}.*?(?:10%|25%|5%|%)\s+of\s+the\s+(?:sum\s+)?insured.*?(?:maximum\s+of\s+)?(?:INR\.?|Rs\.?)\s*([\d,]+)',
+                endorsement_5ii_text,
+                re.IGNORECASE | re.DOTALL
+            )
+            
+            if condition_match:
+                sublimit_info["applicable"] = "Yes"
+                sublimit_info["type"] = condition
+                
+                # Extract the percentage and maximum amount
+                percentage_match = re.search(
+                    rf'{re.escape(condition)}.*?((?:10%|25%|5%|%))\s+of\s+the\s+(?:sum\s+)?insured',
+                    endorsement_5ii_text,
+                    re.IGNORECASE | re.DOTALL
+                )
+                
+                max_amount_match = re.search(
+                    rf'{re.escape(condition)}.*?(?:maximum\s+of\s+)?(?:INR\.?|Rs\.?)\s*([\d,]+)',
+                    endorsement_5ii_text,
+                    re.IGNORECASE | re.DOTALL
+                )
+                
+                if percentage_match and max_amount_match:
+                    percentage = percentage_match.group(1)
+                    max_amount = int(max_amount_match.group(1).replace(',', ''))
+                    
+                    # Handle the case where just "%" is found (default to 10%)
+                    if percentage == "%":
+                        percentage = "10%"
+                    
+                    # Store the percentage and max amount for calculation later
+                    sublimit_info["percentage"] = percentage
+                    sublimit_info["max_amount"] = max_amount
+                    
+                    # For now, set the limit to the max amount (will be calculated based on sum insured later)
+                    sublimit_info["limit"] = max_amount
+                break
+    
+    return sublimit_info
 
-def extract_pre_post_natal_from_endt_11b(text: str) -> Dict:
-    """Extract Pre & Post Natal data from Endorsement 11b and Special Conditions"""
-    pre_post_natal_data = {
-        # Pre-Natal fields
-        "Pre-Natal Benefit Applicable?": "No",
-        "Pre-Natal Waiting Period": "0",
-        "Pre-Natal Limit On Children": "2",
-        "Pre-Natal Member Contribution": "No",
-        "Pre-Natal Copay/Deductible": "No",
-        "Pre-Natal Is Combined": "No",
-        "Pre-Natal Sum Insured": "",
-        "Pre-Natal % Limit": "",
-        "Pre-Natal Limit": "",
-        "Pre-Natal Applicability": "Lower",
-        "Pre-Natal Copay": "",
-        "Pre-Natal Deductible": "",
-        "Pre-Natal Is Combined (2)": "No",
-        "Pre-Natal No of Days": "30",
-        "Pre-Natal % Limit Applicable On": "Sum Insured",
-        
-        # Post-Natal fields
-        "Post-Natal Benefit Applicable?": "No",
-        "Post-Natal Waiting Period": "0",
-        "Post-Natal Limit On Children": "2",
-        "Post-Natal Member Contribution": "No",
-        "Post-Natal Copay/Deductible": "No",
-        "Post-Natal Is Combined": "No",
-        "Post-Natal Sum Insured": "",
-        "Post-Natal % Limit": "",
-        "Post-Natal Limit": "",
-        "Post-Natal Applicability": "Lower",
-        "Post-Natal Copay": "",
-        "Post-Natal Deductible": "",
-        "Post-Natal Is Combined (2)": "No",
-        "Post-Natal No of Days": "60",
-        "Post-Natal % Limit Applicable On": "Sum Insured",
-        
-        # Combined fields
-        "Pre-Post-Natal Benefit Applicable?": "No",
-        "Over-Above-Maternity Applicable?": "No",
-        "Over-Above-Maternity Limit": ""
-    }
-    
-    # Extract Endorsement No. 11b section
-    endorsement_11b_match = re.search(r'Endt\.\s*No\.\s*11\s*\(?b?\)?.*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
-    
-    # Check for Pre & Post Natal in Special Conditions
-    special_conditions_match = re.search(r'Special\s+Conditions.*?(?=Endorsement|Endt\.|$)', text, re.IGNORECASE | re.DOTALL)
-    
-    # Combine both sections for analysis
-    analysis_text = ""
-    if endorsement_11b_match:
-        analysis_text += endorsement_11b_match.group(0) + " "
-    if special_conditions_match:
-        analysis_text += special_conditions_match.group(0) + " "
-    
-    if not analysis_text:
-        return pre_post_natal_data
-    
-    # Check if Pre & Post Natal is applicable
-    if re.search(r'pre.*?natal.*?post.*?natal', analysis_text, re.IGNORECASE) or \
-       re.search(r'pre.*?post.*?natal', analysis_text, re.IGNORECASE) or \
-       re.search(r'pre-natal.*?post-natal', analysis_text, re.IGNORECASE):
-        
-        pre_post_natal_data["Pre-Natal Benefit Applicable?"] = "Yes"
-        pre_post_natal_data["Post-Natal Benefit Applicable?"] = "Yes"
-        pre_post_natal_data["Pre-Post-Natal Benefit Applicable?"] = "Yes"
-        
-        # Check for Over & Above Maternity Limit
-        if re.search(r'over.*?above.*?maternity.*?limit', analysis_text, re.IGNORECASE):
-            pre_post_natal_data["Over-Above-Maternity Applicable?"] = "Yes"
-            
-            # Extract Over & Above Maternity Limit amount
-            over_above_match = re.search(r'over.*?above.*?maternity.*?limit.*?Rs\.?([\d,]+)', analysis_text, re.IGNORECASE)
-            if over_above_match:
-                pre_post_natal_data["Over-Above-Maternity Limit"] = over_above_match.group(1).replace(",", "")
-        
-        # Set default values for Pre-Natal
-        pre_post_natal_data["Pre-Natal No of Days"] = "30"
-        pre_post_natal_data["Pre-Natal % Limit Applicable On"] = "Sum Insured"
-        pre_post_natal_data["Pre-Natal Is Combined"] = "No"
-        pre_post_natal_data["Pre-Natal Is Combined (2)"] = "No"
-        
-        # Set default values for Post-Natal
-        pre_post_natal_data["Post-Natal No of Days"] = "60"
-        pre_post_natal_data["Post-Natal % Limit Applicable On"] = "Sum Insured"
-        pre_post_natal_data["Post-Natal Is Combined"] = "No"
-        pre_post_natal_data["Post-Natal Is Combined (2)"] = "No"
-        
-        # Extract Sum Insured (from corporate floater or main policy)
-        sum_insured_match = re.search(r'limit of Rs\.([\d,]+)/- as Corporate floater', text, re.IGNORECASE)
-        if sum_insured_match:
-            sum_insured = sum_insured_match.group(1).replace(",", "")
-            pre_post_natal_data["Pre-Natal Sum Insured"] = sum_insured
-            pre_post_natal_data["Post-Natal Sum Insured"] = sum_insured
-        
-        # Extract Maternity Limit for percentage calculation
-        maternity_limit_match = re.search(r'limited to Rs\.([\d,]+)', analysis_text, re.IGNORECASE)
-        if maternity_limit_match:
-            maternity_limit = maternity_limit_match.group(1).replace(",", "")
-            
-            # Calculate % Limit for Pre-Natal
-            if pre_post_natal_data["Pre-Natal Sum Insured"] and maternity_limit:
-                try:
-                    sum_insured_val = int(pre_post_natal_data["Pre-Natal Sum Insured"])
-                    maternity_limit_val = int(maternity_limit)
-                    if maternity_limit_val > 0:
-                        pre_natal_percentage = (sum_insured_val / maternity_limit_val) * 100
-                        pre_post_natal_data["Pre-Natal % Limit"] = f"{pre_natal_percentage:.1f}"
-                except (ValueError, TypeError):
-                    pass
-            
-            # Calculate % Limit for Post-Natal
-            if pre_post_natal_data["Post-Natal Sum Insured"] and maternity_limit:
-                try:
-                    sum_insured_val = int(pre_post_natal_data["Post-Natal Sum Insured"])
-                    maternity_limit_val = int(maternity_limit)
-                    if maternity_limit_val > 0:
-                        post_natal_percentage = (sum_insured_val / maternity_limit_val) * 100
-                        pre_post_natal_data["Post-Natal % Limit"] = f"{post_natal_percentage:.1f}"
-                except (ValueError, TypeError):
-                    pass
-        
-        # Extract Pre & Post Natal Limit Amount from Policy PDF
-        pre_post_limit_match = re.search(r'pre.*?post.*?natal.*?limit.*?Rs\.?([\d,]+)', analysis_text, re.IGNORECASE)
-        if pre_post_limit_match:
-            limit_amount = pre_post_limit_match.group(1).replace(",", "")
-            pre_post_natal_data["Pre-Natal Limit"] = limit_amount
-            pre_post_natal_data["Post-Natal Limit"] = limit_amount
-        else:
-            # Look for general sublimit
-            sublimit_match = re.search(r'sublimit.*?Rs\.?([\d,]+)', analysis_text, re.IGNORECASE)
-            if sublimit_match:
-                limit_amount = sublimit_match.group(1).replace(",", "")
-                pre_post_natal_data["Pre-Natal Limit"] = limit_amount
-                pre_post_natal_data["Post-Natal Limit"] = limit_amount
-        
-        # Extract Copay and Deductible information
-        copay_match = re.search(r'(\d+)%.*?admissible', analysis_text, re.IGNORECASE)
-        if copay_match:
-            copay_percentage = copay_match.group(1)
-            pre_post_natal_data["Pre-Natal Copay"] = copay_percentage
-            pre_post_natal_data["Post-Natal Copay"] = copay_percentage
-            pre_post_natal_data["Pre-Natal Copay/Deductible"] = "Copay"
-            pre_post_natal_data["Post-Natal Copay/Deductible"] = "Copay"
-        
-        deductible_match = re.search(r'deductible.*?Rs\.?([\d,]+)', analysis_text, re.IGNORECASE)
-        if deductible_match:
-            deductible_amount = deductible_match.group(1).replace(",", "")
-            pre_post_natal_data["Pre-Natal Deductible"] = deductible_amount
-            pre_post_natal_data["Post-Natal Deductible"] = deductible_amount
-            pre_post_natal_data["Pre-Natal Copay/Deductible"] = "Deductible"
-            pre_post_natal_data["Post-Natal Copay/Deductible"] = "Deductible"
-        
-        # Extract Member Contribution
-        if re.search(r'member.*?contribution', analysis_text, re.IGNORECASE):
-            pre_post_natal_data["Pre-Natal Member Contribution"] = "Yes"
-            pre_post_natal_data["Post-Natal Member Contribution"] = "Yes"
-        
-        # Extract waiting period
-        waiting_period_match = re.search(r'(\d+)\s*days\s*waiting\s*period', analysis_text, re.IGNORECASE)
-        if waiting_period_match:
-            waiting_period = waiting_period_match.group(1)
-            pre_post_natal_data["Pre-Natal Waiting Period"] = waiting_period
-            pre_post_natal_data["Post-Natal Waiting Period"] = waiting_period
-        
-        # Extract limit on number of children
-        children_limit_match = re.search(r'first\s*(\d+)\s*children', analysis_text, re.IGNORECASE)
-        if children_limit_match:
-            children_limit = children_limit_match.group(1)
-            pre_post_natal_data["Pre-Natal Limit On Children"] = children_limit
-            pre_post_natal_data["Post-Natal Limit On Children"] = children_limit
-    
-    return pre_post_natal_data
 
-def extract_maternity_from_endt_11b(text: str) -> Dict:
-    """Extract maternity data specifically from Endorsement No. 11b"""
-    maternity_data = {
-        "Benefit Applicable?": "No",
-        "Waiting Period(In Days)": "0",
-        "Limit On Number Of Live Children": "2",
-        "Member Contribution Applicable?": "No",
-        "Copay or deductible Applicable?": "No",
-        "Is Maternity Combined?": "No",
-        "Sum Insured": "",
-        "% Limit": "",
-        "Limit": "",
-        "Applicability": "Lower",
-        "Copay": "",
-        "Deductible": "",
-        "Is Maternity Combined? (2)": "No"
-    }
-    
-    # Extract Endorsement No. 11b section
-    endorsement_11b_match = re.search(r'Endt\.\s*No\.\s*11\s*\(?b?\)?.*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
-    
-    if not endorsement_11b_match:
-        return maternity_data
-    
-    endorsement_11b_text = endorsement_11b_match.group(0)
-    
-    # Check if maternity benefit is applicable
-    if re.search(r'maternity', endorsement_11b_text, re.IGNORECASE):
-        maternity_data["Benefit Applicable?"] = "Yes"
-        
-        # Set default waiting period to 0 as per instructions
-        maternity_data["Waiting Period(In Days)"] = "0"
-        
-        # Set default limit on number of children to 2 as per instructions
-        maternity_data["Limit On Number Of Live Children"] = "2"
-        
-        # Extract waiting period from policy if available
-        waiting_period_match = re.search(r"(\d+)\s*days\s*waiting\s*period", endorsement_11b_text, re.IGNORECASE)
-        if waiting_period_match:
-            maternity_data["Waiting Period(In Days)"] = waiting_period_match.group(1)
-        
-        # Extract limit on number of children from policy if available
-        children_limit_match = re.search(r"first\s*(\d+)\s*children", endorsement_11b_text, re.IGNORECASE)
-        if children_limit_match:
-            maternity_data["Limit On Number Of Live Children"] = children_limit_match.group(1)
-        
-        # Check for Member Contribution
-        if re.search(r"member.*?contribution", endorsement_11b_text, re.IGNORECASE):
-            maternity_data["Member Contribution Applicable?"] = "Yes"
-            
-            # Extract Copay or Deductible from Endorsement 11b
-            if re.search(r"copay", endorsement_11b_text, re.IGNORECASE):
-                maternity_data["Copay or deductible Applicable?"] = "Copay"
-                # Extract copay percentage
-                copay_match = re.search(r"(\d+)%.*?copay", endorsement_11b_text, re.IGNORECASE)
-                if copay_match:
-                    maternity_data["Copay"] = copay_match.group(1)
-                else:
-                    # Look for general copay percentage
-                    general_copay_match = re.search(r"(\d+)%.*?admissible", endorsement_11b_text, re.IGNORECASE)
-                    if general_copay_match:
-                        maternity_data["Copay"] = general_copay_match.group(1)
-            
-            elif re.search(r"deductible", endorsement_11b_text, re.IGNORECASE):
-                maternity_data["Copay or deductible Applicable?"] = "Deductible"
-                # Extract deductible amount
-                deductible_match = re.search(r"deductible.*?Rs\.?([\d,]+)", endorsement_11b_text, re.IGNORECASE)
-                if deductible_match:
-                    maternity_data["Deductible"] = deductible_match.group(1).replace(",", "")
-                else:
-                    # Look for general deductible
-                    general_deductible_match = re.search(r"deductible.*?(\d+)", endorsement_11b_text, re.IGNORECASE)
-                    if general_deductible_match:
-                        maternity_data["Deductible"] = general_deductible_match.group(1)
-        else:
-            maternity_data["Member Contribution Applicable?"] = "No"
-            maternity_data["Copay or deductible Applicable?"] = "No"
-        
-        # Check if Maternity is Combined
-        if re.search(r"maternity.*?combined", endorsement_11b_text, re.IGNORECASE):
-            maternity_data["Is Maternity Combined?"] = "Yes"
-            maternity_data["Is Maternity Combined? (2)"] = "Yes"
-        else:
-            maternity_data["Is Maternity Combined?"] = "No"
-            maternity_data["Is Maternity Combined? (2)"] = "No"
-        
-        # Extract Sum Insured
-        sum_insured_match = re.search(r"sum\s+insured.*?Rs\.?([\d,]+)", endorsement_11b_text, re.IGNORECASE)
-        if sum_insured_match:
-            maternity_data["Sum Insured"] = sum_insured_match.group(1).replace(",", "")
-        else:
-            # Fallback to corporate floater
-            corp_floater_match = re.search(r"limit of Rs\.([\d,]+)/- as Corporate floater", text, re.IGNORECASE)
-            if corp_floater_match:
-                maternity_data["Sum Insured"] = corp_floater_match.group(1).replace(",", "")
-        
-        # Set % Limit to "Sum Insured" as per instructions
-        maternity_data["% Limit"] = "Sum Insured"
-        
-        # Extract Maternity Limit Amount from Policy PDF
-        maternity_limit_match = re.search(r"maternity.*?limit.*?Rs\.?([\d,]+)", endorsement_11b_text, re.IGNORECASE)
-        if maternity_limit_match:
-            maternity_data["Limit"] = maternity_limit_match.group(1).replace(",", "")
-        else:
-            # Look for general maternity limit
-            general_limit_match = re.search(r"limited to Rs\.([\d,]+)", endorsement_11b_text, re.IGNORECASE)
-            if general_limit_match:
-                maternity_data["Limit"] = general_limit_match.group(1).replace(",", "")
-        
-        # Set default applicability to "Lower"
-        maternity_data["Applicability"] = "Lower"
-        
-        # Extract Copay and Deductible amounts if not already set
-        if not maternity_data.get("Copay"):
-            copay_match = re.search(r"(\d+)%.*?admissible", endorsement_11b_text, re.IGNORECASE)
-            if copay_match:
-                maternity_data["Copay"] = copay_match.group(1)
-        
-        if not maternity_data.get("Deductible"):
-            deductible_match = re.search(r"deductible.*?Rs\.?([\d,]+)", endorsement_11b_text, re.IGNORECASE)
-            if deductible_match:
-                maternity_data["Deductible"] = deductible_match.group(1).replace(",", "")
-            else:
-                general_deductible_match = re.search(r"deductible.*?(\d+)", endorsement_11b_text, re.IGNORECASE)
-                if general_deductible_match:
-                    maternity_data["Deductible"] = general_deductible_match.group(1)
-    
-    return maternity_data
 
-def extract_primary_data(text: str) -> List[Dict[str, str]]:
-    """Extract Pre & Post Hospitalisation, Maternity, and OPD details"""
-    
-    data = {
-        # Combined section
-        "Benefit Applicable?": "",
-        "Is Pre and Post Combined?": "",
-        "Type Of Expense": "",
-        "No. Of Days": "",
-        "% Limit Applicable On": "",
-        "% Limit": "",
-        "Limit": "",
-        "Applicability": "",
-        
-        # Pre Hospitalisation section
-        "Type of expense 1": "",
-        "No. Of Days 1": "",
-        "% Limit Applicable 1": "",
-        "Limit Percentage 1": "",
-        "Limit Amount 1": "",
-        "Applicability 1": "",
-        
-        # Post Hospitalisation or OPD section
-        "Type of expense 2": "",
-        "No. Of Days 2": "",
-        "% Limit Applicable 2": "",
-        "Limit Percentage 2": "",
-        "Limit Amount 2": "",
-        "Applicability 2": "",
-
-        # Main Maternity fields
-        "Maternity Benefit Applicable?": "",
-        "Maternity Waiting Period(In Days)": "",
-        "Maternity Limit On Number Of Live Children": "",
-        "Maternity Member Contribution Applicable?": "",
-        "Maternity Copay or deductible Applicable?": "",
-        "Maternity Is Combined?": "",
-        "Maternity Sum Insured": "",
-        "Maternity % Limit": "",
-        "Maternity Limit": "",
-        "Maternity Applicability": "",
-        "Maternity Copay": "",
-        "Maternity Deductible": "",
-        "Maternity Is Combined? (2)": "",
-        
-        # Pre-Natal specific fields
-        "Pre-Natal Benefit Applicable?": "",
-        "Pre-Natal Waiting Period": "",
-        "Pre-Natal Limit On Children": "",
-        "Pre-Natal Member Contribution": "",
-        "Pre-Natal Copay/Deductible": "",
-        "Pre-Natal Is Combined": "",
-        "Pre-Natal Sum Insured": "",
-        "Pre-Natal % Limit": "",
-        "Pre-Natal Limit": "",
-        "Pre-Natal Applicability": "",
-        "Pre-Natal Copay": "",
-        "Pre-Natal Deductible": "",
-        "Pre-Natal Is Combined (2)": "",
-        
-        # Post-Natal specific fields
-        "Post-Natal Benefit Applicable?": "",
-        "Post-Natal Waiting Period": "",
-        "Post-Natal Limit On Children": "",
-        "Post-Natal Member Contribution": "",
-        "Post-Natal Copay/Deductible": "",
-        "Post-Natal Is Combined": "",
-        "Post-Natal Sum Insured": "",
-        "Post-Natal % Limit": "",
-        "Post-Natal Limit": "",
-        "Post-Natal Applicability": "",
-        "Post-Natal Copay": "",
-        "Post-Natal Deductible": "",
-        "Post-Natal Is Combined (2)": "",
-        
-        # New Born specific fields
-        "New Born Covered?": "",
-        "New Born Covered": "",
-        "New Born Sum Insured": "",
-        "New Born % Limit": "",
-        "New Born Limit": "",
-        "New Born Applicability": "",
-        "New Born % Limit Applicable On": "",
-        
-        # Additional fields that appear in the logic
-        "Sum Insured": "",
-        "Waiting Period(In Days)": "",
-        "Over-Above-Maternity Limit": "",
-        "Over-Above-Maternity Applicable?": "",
-        "Member Contribution Applicable?": "",
-        "Copay": "",
-        "Deductible": "",
-        "Is New Born Limit Applicable": "",
-        "covered From": "",
-        
-        # Additional fields from the code logic
-        "Maternity": "",
-        "maternity_2": "",
-        "limit": "",
-        "limit_2": "",
-        "limit amount": "",
-        "Sum insured": "",
-        "%limit": "",
-        "%Limit": "",
-        "%limit_2": "",
-        "Limit Percentage": "",
-        "No.of Days": "",
-        "no.of Days": "",
-        "No.of Days_2": "",
-        "%Limit Applicable on": "",
-        "%Limit Applicable on_2": "",
-        "%Limit Applicable on_3": "",
-        "%Limit applicable on": "",
-        "applicability": "",
-        "applicability_2": "",
-        "applicability_3": "",
-        "new born covered?": ""
-    }
-
-    # === Benefit Applicability Check ===
-    # Default to "Yes" as per instructions
-    data["Benefit Applicable?"] = "Yes"
-    
-    # Check if Pre and Post are combined
-    if "Pre Hospitalisation Expenses" in text and "Post Hospitalisation Expenses" in text:
-        # Check if they are mentioned as combined
-        if re.search(r"pre.*?post.*?combined", text, re.IGNORECASE) or re.search(r"combined.*?pre.*?post", text, re.IGNORECASE):
-            data["Is Pre and Post Combined?"] = "Yes"
-            data["Type Of Expense"] = "Pre And Post Hospitalization Combined"
-            # No. Of Days should not be filled as per instructions
-            data["No. Of Days"] = ""
-        else:
-            data["Is Pre and Post Combined?"] = "No"
-            data["Type Of Expense"] = "Pre Hospitalisation"
-            # No. Of Days should not be filled as per instructions
-            data["No. Of Days"] = ""
+def determine_member_type(min_age_years: int, max_age_years: int) -> str:
+    """Determine member type based on age range"""
+    # If the age range is primarily for children (max age <= 18)
+    if max_age_years <= 18:
+        return "Child"
+    # If the age range is for adults (min age >= 18)
+    elif min_age_years >= 18:
+        return "Adult"
+    # If the range spans both child and adult ages, determine based on the majority
     else:
-        data["Is Pre and Post Combined?"] = "No"
-        data["Type Of Expense"] = "Pre Hospitalisation"
-        # No. Of Days should not be filled as per instructions
-        data["No. Of Days"] = ""
-
-    # === Pre Hospitalisation ===
-    pre_match = re.search(
-        r"Pre Hospitalisation Expenses\s*Medical Expenses incurred during (\d+)\s*days",
-        text, re.IGNORECASE
-    )
-    if pre_match:
-        # Extract days from policy if available
-        extracted_days = pre_match.group(1)
-        if data["Is Pre and Post Combined?"] == "No":
-            data["Type of expense 1"] = "Pre Hospitalization Expenses"
-            data["No. Of Days 1"] = "30"  # Default 30 days as per instructions
-            data["% Limit Applicable 1"] = "Sum Insured"  # Default as per instructions
-            data["Applicability 1"] = "Lower"  # Default as per instructions
+        # Calculate the midpoint of the age range
+        mid_age = (min_age_years + max_age_years) / 2
+        if mid_age < 18:
+            return "Child"
         else:
-            data["Type of expense 1"] = "Pre Hospitalization Expenses"
-            data["No. Of Days 1"] = extracted_days
-            data["% Limit Applicable 1"] = "Sum Insured"
-            data["Applicability 1"] = "Lower"
+            return "Adult"
 
-    # === Post Hospitalisation ===
-    post_match = re.search(
-        r"Post Hospitalisation Expenses\s*Medical Expenses incurred during (\d+)\s*days",
-        text, re.IGNORECASE
-    )
-    if post_match:
-        # Extract days from policy if available
-        extracted_days = post_match.group(1)
-        if data["Is Pre and Post Combined?"] == "No":
-            data["Type of expense 2"] = "Post Hospitalization Expenses"
-            data["No. Of Days 2"] = "60"  # Default 60 days as per instructions
-            data["% Limit Applicable 2"] = "Sum Insured"  # Default as per instructions
-            data["Applicability 2"] = "Lower"  # Default as per instructions
+def extract_corporate_buffer_applicability(text: str) -> str:
+    """
+    Checks if Endt. No. 10 or Endorsement No. 10 exists in the text.
+    Returns 'Yes' if applicable, else 'No'.
+    """
+    if re.search(r'(Endt\.|Endorsement)\s*No\.?\s*10\b', text, re.IGNORECASE):
+        return "Yes"
+    return "No"
+
+
+def calculate_sublimit(sum_insured: int, percentage: str = "10%", max_amount: int = 200000) -> int:
+    """Calculate sublimit based on sum insured, percentage, and maximum amount"""
+    if percentage == "10%" or percentage == "%":
+        calculated_limit = int(sum_insured * 0.10)
+    elif percentage == "25%":
+        calculated_limit = int(sum_insured * 0.25)
+    elif percentage == "5%":
+        calculated_limit = int(sum_insured * 0.05)
+    else:
+        calculated_limit = int(sum_insured * 0.10)  # Default to 10%
+    
+    return min(calculated_limit, max_amount)
+
+
+def extract_Eligibility(text: str) -> List[Dict]:
+    # Extract Endorsement No. 1 section
+    endorsement_1_match = re.search(r'Endt\.\s*No\.\s*1.*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
+    
+    if not endorsement_1_match:
+        # Try alternative patterns for Endt. No. 1
+        endorsement_1_match = re.search(r'Endorsement\s*No\.\s*1.*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
+        
+    if not endorsement_1_match:
+        # Try to find any section that mentions eligibility or member definitions
+        endorsement_1_match = re.search(r'(?:Eligibility|Member|Insured Person).*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
+    
+    if not endorsement_1_match:
+        print("[WARNING] Endt. No. 1 section not found, using entire text for extraction")
+        endorsement_1_text = text
+    else:
+        endorsement_1_text = endorsement_1_match.group(0)
+    
+    # Extract age ranges dynamically from Endorsement No. 1 only
+    age_ranges = extract_age_ranges(endorsement_1_text)
+    
+    # Extract member counts from Endorsement No. 1 only
+    # More robust employee detection - look for various patterns that indicate employee coverage
+    employee = 0
+    if re.search(r'Insured Person covers employees of the Insured', endorsement_1_text, re.IGNORECASE):
+        employee = 1
+    elif re.search(r'employee', endorsement_1_text, re.IGNORECASE):
+        employee = 1
+    elif re.search(r'insured person', endorsement_1_text, re.IGNORECASE):
+        employee = 1
+    # If we have spouse or children but no explicit employee detection, assume employee is covered
+    elif re.search(r'spouse', endorsement_1_text, re.IGNORECASE) or re.search(r'children', endorsement_1_text, re.IGNORECASE):
+        employee = 1
+    # More robust spouse detection
+    spouse = 0
+    spouse_patterns = [
+        r'Spouse\s*-\s*Spouse means the employee[\u2019\'s]{0,2}\s+legally married partner',
+        r'spouse',
+        r'Dependent Spouse',
+        r'Dependant Spouse',
+        r'Spouse\s*-\s*(\d+)',
+        r'Spouse\s*:\s*(\d+)'
+    ]
+    
+    for pattern in spouse_patterns:
+        if re.search(pattern, endorsement_1_text, re.IGNORECASE):
+            spouse = 1
+            break
+    
+    # Extract children count dynamically from Endorsement No. 1 only
+    children = 0
+    
+    # Multiple patterns to catch different formats of dependent children mentions
+    children_patterns = [
+        r'Maximum of (?:the )?first\s*(\d+)\s*dependent children',
+        r'Maximum of (?:the )?first\s*(\d+)\s*dependant children',
+        r'(\d+)\s*dependent children',
+        r'(\d+)\s*dependant children',
+        r'Maximum of (?:the )?first\s*(\d+)\s*children',
+        r'(\d+)\s*children',
+        r'Dependent Children\s*-\s*(\d+)',
+        r'Dependant Children\s*-\s*(\d+)',
+        r'Children\s*-\s*(\d+)',
+        r'Maximum of (?:the )?first\s*(\d+)\s*dependent',
+        r'(\d+)\s*dependent',
+        r'Children\s*:\s*(\d+)',
+        r'Dependent Children\s*:\s*(\d+)',
+        r'Dependant Children\s*:\s*(\d+)',
+        r'Maximum\s*(\d+)\s*children',
+        r'Maximum\s*(\d+)\s*dependent',
+        r'Maximum\s*(\d+)\s*dependant',
+        r'Up to\s*(\d+)\s*children',
+        r'Up to\s*(\d+)\s*dependent',
+        r'Up to\s*(\d+)\s*dependant'
+    ]
+    
+    for pattern in children_patterns:
+        children_match = re.search(pattern, endorsement_1_text, re.IGNORECASE)
+        if children_match:
+            children = int(children_match.group(1))
+            break
+    
+    # If no specific count found, check if dependent children are mentioned at all
+    if children == 0:
+        if re.search(r'dependent children', endorsement_1_text, re.IGNORECASE) or re.search(r'dependant children', endorsement_1_text, re.IGNORECASE):
+            # Default to 2 children if mentioned but no count specified
+            children = 2
+    
+    # If we have children but no employee detected, assume employee is covered
+    if children > 0 and employee == 0:
+        employee = 1
+        print(f"[INFO] Employee coverage assumed due to {children} dependent children found")
+    
+    # Extract parents count from Endorsement No. 1 only
+    # Check for various parent patterns
+    dependent_parents = 0
+    parents_in_law = 0
+    
+    # Patterns for dependent parents
+    dependent_parents_patterns = [
+        r'Dependent Parents',
+        r'Dependant Parents',
+        r'Dependent Parent',
+        r'Dependant Parent',
+        r'Parents\s*-\s*(\d+)',
+        r'Parent\s*-\s*(\d+)'
+    ]
+    
+    for pattern in dependent_parents_patterns:
+        if re.search(pattern, endorsement_1_text, re.IGNORECASE):
+            dependent_parents = 2  # Default to 2 (father + mother)
+            break
+    
+    # Patterns for parents in law
+    parents_in_law_patterns = [
+        r'Dependant Parents in law',
+        r'Dependent Parents in law',
+        r'Dependant Parents-in-law',
+        r'Dependent Parents-in-law',
+        r'Parents in law',
+        r'Parents-in-law'
+    ]
+    
+    for pattern in parents_in_law_patterns:
+        if re.search(pattern, endorsement_1_text, re.IGNORECASE):
+            parents_in_law = 2  # Default to 2 (father-in-law + mother-in-law)
+            break
+    
+    parents = dependent_parents + parents_in_law
+    
+    # Calculate total members covered
+    total_covered = employee + spouse + children + parents
+    
+    # Debug information
+    print(f"[DEBUG] Endt. No. 1 extraction results:")
+    print(f"[DEBUG] - Employee: {employee}")
+    print(f"[DEBUG] - Spouse: {spouse}")
+    print(f"[DEBUG] - Children: {children}")
+    print(f"[DEBUG] - Parents: {parents}")
+    print(f"[DEBUG] - Total covered: {total_covered}")
+    
+    # Extract buffer information from Endorsement No. 1 only
+    buffer_match = re.search(r'limit of Rs[\.:]?\s?([\d,]+)', endorsement_1_text, re.IGNORECASE)
+    buffer_limit = int(buffer_match.group(1).replace(',', '')) if buffer_match else 0
+
+    # Extract Sum Insured from the policy text
+    sum_insured = 0
+    sum_insured_match = re.search(r'limit of Rs\.([\d,]+)/- as Corporate floater', text, re.IGNORECASE)
+    if sum_insured_match:
+        sum_insured = int(sum_insured_match.group(1).replace(",", ""))
+    else:
+        # Try alternative patterns for sum insured
+        sum_insured_match = re.search(r'sum insured.*?Rs\.([\d,]+)', text, re.IGNORECASE)
+        if sum_insured_match:
+            sum_insured = int(sum_insured_match.group(1).replace(",", ""))
         else:
-            data["Type of expense 2"] = "Post Hospitalization Expenses"
-            data["No. Of Days 2"] = extracted_days
-            data["% Limit Applicable 2"] = "Sum Insured"
-            data["Applicability 2"] = "Lower"
+            # Default sum insured if not found
+            sum_insured = 200000  # Default value
 
-    # Set defaults for Pre & Post Hospitalization when not combined
-    if data["Is Pre and Post Combined?"] == "No":
-        # Ensure Pre Hospitalization defaults are set
-        if not data.get("Type of expense 1"):
-            data["Type of expense 1"] = "Pre Hospitalization Expenses"
-        if not data.get("No. Of Days 1"):
-            data["No. Of Days 1"] = "30"
-        if not data.get("% Limit Applicable 1"):
-            data["% Limit Applicable 1"] = "Sum Insured"
-        if not data.get("Applicability 1"):
-            data["Applicability 1"] = "Lower"
+    # Extract Corporate Buffer values from Endorsement No: 10
+    corporate_buffer_applicable = extract_corporate_buffer_applicability(text)
+    corporate_buffer_limit_family = 0
+    corporate_buffer_limit_parent = 0
+    reload_of_si = "No limit for the reload of SI"
+    buffer_opd_limit = 0
+    
+    # Look for Endorsement No: 10
+    endorsement_10_match = re.search(r'Endt\.\s*No\.\s*10.*?(?=Endt\.\s*No\.|Endorsement\s*No\.|$)', text, re.IGNORECASE | re.DOTALL)
+    if endorsement_10_match:
+        endorsement_10_text = endorsement_10_match.group(0)
+        
+        # Check if Corporate Buffer/Floater is applicable
+        if re.search(r'corporate\s+(?:buffer|floater)', endorsement_10_text, re.IGNORECASE):
+            corporate_buffer_applicable = "Yes"
             
-        # Ensure Post Hospitalization defaults are set
-        if not data.get("Type of expense 2"):
-            data["Type of expense 2"] = "Post Hospitalization Expenses"
-        if not data.get("No. Of Days 2"):
-            data["No. Of Days 2"] = "60"
-        if not data.get("% Limit Applicable 2"):
-            data["% Limit Applicable 2"] = "Sum Insured"
-        if not data.get("Applicability 2"):
-            data["Applicability 2"] = "Lower"
+            # Extract Corporate Buffer/Floater Limit
+            floater_limit_match = re.search(r'limit\s+of\s+Rs[\.:]?\s?([\d,]+).*?corporate\s+(?:buffer|floater)', endorsement_10_text, re.IGNORECASE)
+            if floater_limit_match:
+                corporate_buffer_limit_family = int(floater_limit_match.group(1).replace(',', ''))
+            
+            # Extract Corporate Buffer Limit Per Family (if different from floater limit)
+            family_limit_match = re.search(r'corporate\s+buffer\s+limit\s+per\s+family.*?Rs[\.:]?\s?([\d,]+)', endorsement_10_text, re.IGNORECASE)
+            if family_limit_match:
+                corporate_buffer_limit_family = int(family_limit_match.group(1).replace(',', ''))
+            
+            # Extract Corporate Buffer Limit Per Parent
+            parent_limit_match = re.search(r'corporate\s+buffer\s+limit\s+per\s+parent.*?Rs[\.:]?\s?([\d,]+)', endorsement_10_text, re.IGNORECASE)
+            if parent_limit_match:
+                corporate_buffer_limit_parent = int(parent_limit_match.group(1).replace(',', ''))
+            
+            # Extract Reload of SI options
+            if re.search(r'reload.*?up\s+to\s+double', endorsement_10_text, re.IGNORECASE):
+                reload_of_si = "Reload of SI is up to Double"
+            elif re.search(r'reload.*?up\s+to\s+thrice', endorsement_10_text, re.IGNORECASE):
+                reload_of_si = "Reload of SI is up to the Thr"
+            elif re.search(r'reload.*?up\s+to\s+existing', endorsement_10_text, re.IGNORECASE):
+                reload_of_si = "Reload of SI is up to the Exis"
+            elif re.search(r'no\s+limit.*?reload', endorsement_10_text, re.IGNORECASE):
+                reload_of_si = "No limit for the reload of SI"
+            
+            # Extract Buffer OPD Limit
+            opd_limit_match = re.search(r'buffer\s+opd\s+limit.*?Rs[\.:]?\s?([\d,]+)', endorsement_10_text, re.IGNORECASE)
+            if opd_limit_match:
+                buffer_opd_limit = int(opd_limit_match.group(1).replace(',', ''))
 
-    # === Pre & Post Natal OPD ===
-    if "Pre-Natal and Post-Natal Expense is extended to be covered on Out-patient basis" in text:
-        data["Type of expense 2"] = "Pre & Post Natal OPD"
-        data["Applicability 2"] = "Lower"  # Default as per instructions
-
-        opd_days = re.search(r"Pre-Natal.*?(\d+).*?days", text, re.IGNORECASE)
-        data["No. Of Days 2"] = opd_days.group(1) if opd_days else "90"
-
-        opd_perc = re.search(r"Pre-Natal.*?(\d+)%", text, re.IGNORECASE)
-        data["Limit Percentage 2"] = opd_perc.group(1) if opd_perc else "100"
-
-        data["% Limit Applicable 2"] = "Sum Insured"  # Default as per instructions
-
-        opd_limit = re.search(r"sublimit of Rs\.?\s?([\d,]+)", text, re.IGNORECASE)
-        if opd_limit:
-            data["Limit Amount 2"] = opd_limit.group(1).replace(",", "")
-
-    # === Maternity Limit ===
-    maternity_limit = re.search(r"limited to Rs\.([\d,]+)", text, re.IGNORECASE)
-    if maternity_limit:
-        data["Limit"] = maternity_limit.group(1).replace(",", "")
-
-    # === Co-payment % ===
-    co_pay = re.search(r"(\d+)% of the admissible claim", text, re.IGNORECASE)
-    if co_pay:
-        data["% Limit"] = co_pay.group(1)
-        data["% Limit Applicable On"] = "Sum Insured"  # Default as per instructions
-
-    # === Corporate Floater ===
-    corp_floater = re.search(r"limit of Rs\.([\d,]+)/- as Corporate floater", text, re.IGNORECASE)
-    if corp_floater:
-        data["Limit Amount 1"] = corp_floater.group(1).replace(",", "")
-
-    # === Ambulance limit fallback ===
-    ambulance = re.search(r"limit of Rs\.([\d,]+)/- per claim", text, re.IGNORECASE)
-    if ambulance and not data["Limit Amount 1"]:
-        data["Limit Amount 1"] = ambulance.group(1).replace(",", "")
-
-    # === AYUSH treatment ===
-    ayush = re.search(r"covered up to (\d+)% of the Sum Insured", text, re.IGNORECASE)
-    if ayush:
-        data["Limit Percentage 1"] = ayush.group(1)
-
-    # === Specific disease limits ===
-    disease = re.search(
-        r"(\d+)% of the sum insured subject to a maximum of INR\.([\d,]+)/-",
-        text, re.IGNORECASE
-    )
-    if disease:
-        data["Limit Percentage 2"] = disease.group(1)
-        data["Limit Amount 2"] = disease.group(2).replace(",", "")
-
-    # === Fallback: generic % ===
-    percentages = re.findall(r"(\d+)%", text)
-    used = {data["% Limit"], data["Limit Percentage 1"], data["Limit Percentage 2"]}
-    unused = [p for p in percentages if p not in used]
-    if unused:
-        data["% Limit Applicable 1"] = unused[0]
-
-    # Set default % Limit Applicable On if not set
-    if not data["% Limit Applicable On"]:
-        data["% Limit Applicable On"] = "Sum Insured"  # Default as per instructions
-
-    # Set default Applicability if not set
-    if not data["Applicability"]:
-        data["Applicability"] = "Lower"  # Default as per instructions
-
-    # === Maternity Benefits from Endorsement 11b ===
-    # Extract maternity data specifically from Endorsement No. 11b
-    maternity_data = extract_maternity_from_endt_11b(text)
+    # Extract Critical Illness values
+    critical_illness_applicable = "No"
+    critical_illness_limit_family = 0.0
     
-    # Update the main data dictionary with maternity data
-    data.update(maternity_data)
-
-    # === Pre & Post Natal Benefits from Endorsement 11b and Special Conditions ===
-    # Extract Pre & Post Natal data specifically from Endorsement 11b and Special Conditions
-    pre_post_natal_data = extract_pre_post_natal_from_endt_11b(text)
-    
-    # Update the main data dictionary with Pre & Post Natal data
-    data.update(pre_post_natal_data)
-
-    # Extract Maternity limit from Endorsement 11b
-    maternity_limit_match = re.search(r"limited to Rs\.([\d,]+)", text, re.IGNORECASE)
-    if maternity_limit_match:
-        maternity_limit = int(maternity_limit_match.group(1).replace(",", ""))
-        data["Maternity Limit"] = str(maternity_limit)
-    
-    # Extract Sum Insured (assuming from corporate floater or main policy)
-    sum_insured_match = re.search(r"limit of Rs\.([\d,]+)/- as Corporate floater", text, re.IGNORECASE)
-    if sum_insured_match:
-        sum_insured = int(sum_insured_match.group(1).replace(",", ""))
-        data["Maternity Sum Insured"] = str(sum_insured)
-        data["Pre-Natal Sum Insured"] = str(sum_insured)
-        data["Post-Natal Sum Insured"] = str(sum_insured)
+    # Look for Critical Illness in the policy text
+    if re.search(r'critical\s+illness', text, re.IGNORECASE):
+        critical_illness_applicable = "Yes"
         
-    # Calculate % Limit for Pre-Natal only if both values exist
-    if data["Maternity Sum Insured"] and data["Maternity Limit"]:
-        sum_insured_val = int(data["Maternity Sum Insured"])
-        maternity_limit_val = int(data["Maternity Limit"])
-        if maternity_limit_val > 0:
-            pre_natal_percentage = (sum_insured_val / maternity_limit_val) * 100
-            data["Pre-Natal % Limit"] = f"{pre_natal_percentage:.1f}"
-
-    # Calculate % Limit for Post-Natal only if both values exist
-    if data["Maternity Sum Insured"] and data["Maternity Limit"]:
-        sum_insured_val = int(data["Maternity Sum Insured"])
-        maternity_limit_val = int(data["Maternity Limit"])
-        if maternity_limit_val > 0:
-            post_natal_percentage = (sum_insured_val / maternity_limit_val) * 100
-            data["Post-Natal % Limit"] = f"{post_natal_percentage:.1f}"
-
-    # Extract Pre & Post Natal sublimit from Special Conditions
-    opd_sublimit_match = re.search(r"sublimit of Rs\.?\s?([\d,]+)", text, re.IGNORECASE)
-    if opd_sublimit_match:
-        opd_sublimit = int(opd_sublimit_match.group(1).replace(",", ""))
-        data["Pre-Natal Limit"] = str(opd_sublimit)
-        data["Post-Natal Limit"] = str(opd_sublimit)
-
-    # Extract Co-payment information
-    co_payment_matches = re.findall(r"(\d+)% of the admissible claim", text, re.IGNORECASE)
-    if co_payment_matches:
-        co_payment_percentage = co_payment_matches[0]
-        data["Maternity Copay"] = co_payment_percentage
-        data["Pre-Natal Copay"] = co_payment_percentage
-        data["Post-Natal Copay"] = co_payment_percentage
-
-    
-
-    # Set applicability for Pre-Natal and Post-Natal
-    if data["Pre-Natal Benefit Applicable?"] == "Yes":
-        data["Pre-Natal Applicability"] = "Pre-Natal Expenses"
-    if data["Post-Natal Benefit Applicable?"] == "Yes":
-        data["Post-Natal Applicability"] = "Post-Natal Expenses"
-
-    
-    # Check for Pre & Post Natal in Special Conditions
-    if "Pre and Post Natal OPD Expenses" in text:
-        data["Pre-Natal Benefit Applicable?"] = "Yes"
-        data["Post-Natal Benefit Applicable?"] = "Yes"
-        data["Pre-Post-Natal Benefit Applicable?"] = "Yes"
-        print("[OK] Pre & Post Natal OPD benefits found in Special Conditions")
-
-    # Extract Sum Insured for Pre-Natal and Post-Natal
-    sum_insured_match = re.search(r"limit of Rs\.([\d,]+)/- as Corporate floater", text, re.IGNORECASE)
-    if sum_insured_match:
-        sum_insured = int(sum_insured_match.group(1).replace(",", ""))
-        data["Sum Insured"] = str(sum_insured)
-        data["Pre-Natal % Limit Applicable On"] = "Sum Insured"
-        data["Post-Natal % Limit Applicable On"] = "Sum Insured"
-        data["Pre-Post-Natal % Limit Applicable On"] = "Sum Insured"
-        print(f"[OK] Sum Insured: Rs. {sum_insured}")
-
-    # Set % Limit as "Sum Insured" if no numeric value found
-    if not data["% Limit"]:
-        data["% Limit"] = "Sum Insured"
-        print("[OK] % Limit set to 'Sum Insured' (no numeric value found)")
-
-    # Set default applicability as "Lower"
-    data["Applicability"] = "Lower"
-    data["Pre-Natal Amount Applicability"] = "Lower"
-    data["Post-Natal Amount Applicability"] = "Lower"
-    data["Pre-Post-Natal Applicability"] = "Lower"
-
-    # Extract Co-payment information
-    co_payment_matches = re.findall(r"(\d+)% of the admissible claim", text, re.IGNORECASE)
-    if co_payment_matches:
-        co_payment_percentage = co_payment_matches[0]
-        data["Copay"] = co_payment_percentage
-        print(f"[OK] Co-payment: {co_payment_percentage}%")
-
-    # Extract deductible information if present
-    deductible_match = re.search(r"deductible.*?(\d+)", text, re.IGNORECASE)
-    if deductible_match:
-        data["Deductible"] = deductible_match.group(1)
-        print(f"[OK] Deductible: {deductible_match.group(1)}")
-
-    # Extract member contribution information
-    member_contribution_match = re.search(r"member.*?contribution.*?(\d+)", text, re.IGNORECASE)
-    if member_contribution_match:
-        data["Member Contribution Applicable?"] = "Yes"
-        print(f"[OK] Member contribution: {member_contribution_match.group(1)}%")
-
-    # Set Pre & Post Natal defaults as per instructions
-    if data["Pre-Natal Benefit Applicable?"] == "Yes":
-        data["Pre-Natal No of Days"] = "30"  # Default 30 days
-        data["Pre-Natal Is Combined"] = "No"  # Default No
-        
-        # Calculate % Limit for Pre-Natal
-        if data["Sum Insured"] and data["Limit"]:
-            sum_insured_val = int(data["Sum Insured"])
-            maternity_limit_val = int(data["Limit"])
-            if maternity_limit_val > 0:
-                pre_natal_percentage = (sum_insured_val / maternity_limit_val) * 100
-                data["Pre-Natal % Limit"] = f"{pre_natal_percentage:.1f}"
-                print(f"[OK] Pre-Natal % Limit calculated: {pre_natal_percentage:.1f}%")
-
-    if data["Post-Natal Benefit Applicable?"] == "Yes":
-        data["Post-Natal No of Days"] = "60"  # Default 60 days
-        data["Post-Natal Is Combined"] = "No"  # Default No
-        
-        # Calculate % Limit for Post-Natal
-        if data["Sum Insured"] and data["Limit"]:
-            sum_insured_val = int(data["Sum Insured"])
-            maternity_limit_val = int(data["Limit"])
-            if maternity_limit_val > 0:
-                post_natal_percentage = (sum_insured_val / maternity_limit_val) * 100
-                data["Post-Natal % Limit"] = f"{post_natal_percentage:.1f}"
-                print(f"[OK] Post-Natal % Limit calculated: {post_natal_percentage:.1f}%")
-
-    # Extract Pre & Post Natal sublimit from Special Conditions
-    opd_sublimit_match = re.search(r"sublimit of Rs\.?\s?([\d,]+)", text, re.IGNORECASE)
-    if opd_sublimit_match:
-        opd_sublimit = int(opd_sublimit_match.group(1).replace(",", ""))
-        data["Pre-Natal Limit"] = str(opd_sublimit)
-        data["Post-Natal Limit"] = str(opd_sublimit)
-        data["Pre-Post-Natal Limit"] = str(opd_sublimit)
-        print(f"[OK] Pre & Post Natal OPD sublimit: Rs. {opd_sublimit}")
-
-    # Set Pre & Post Natal Combined defaults - FIXED: Use .get() to safely check
-    if data.get("Pre-Post-Natal Benefit Applicable?") == "Yes":
-        data["Pre-Post-Natal Is Combined"] = "No"  # Default No
-        data["Pre-Post-Natal Type Of Expense"] = "Pre And Post Natal Combined Expense"
-        data["Pre-Post-Natal No. Of Days"] = "90"  # Default 90 days (30+60)
-        
-        # Calculate % Limit for Pre-Post-Natal Combined
-        if data["Sum Insured"] and data["Limit"]:
-            sum_insured_val = int(data["Sum Insured"])
-            maternity_limit_val = int(data["Limit"])
-            if maternity_limit_val > 0:
-                combined_percentage = (sum_insured_val / maternity_limit_val) * 100
-                data["Pre-Post-Natal % Limit"] = f"{combined_percentage:.1f}"
-                print(f"[OK] Pre-Post-Natal Combined % Limit calculated: {combined_percentage:.1f}%")
-
-    # Check for Over & Above Maternity Limit with better extraction
-    if "over and above maternity limit" in text.lower():
-        data["Over-Above-Maternity Applicable?"] = "Yes"
-        # Try to extract the specific limit amount
-        over_above_match = re.search(r"over.*?above.*?maternity.*?limit.*?Rs\.([\d,]+)", text, re.IGNORECASE)
-        if over_above_match:
-            over_above_limit = int(over_above_match.group(1).replace(",", ""))
-            data["Over-Above-Maternity Limit"] = str(over_above_limit)
-            print(f"[OK] Over & Above Maternity Limit: Rs. {over_above_limit}")
+        # Extract Critical Illness limit per family
+        critical_limit_match = re.search(r'critical\s+illness\s+limit\s+per\s+family.*?Rs[\.:]?\s?([\d,]+)', text, re.IGNORECASE)
+        if critical_limit_match:
+            critical_illness_limit_family = float(critical_limit_match.group(1).replace(',', ''))
         else:
-            print("[OK] Over & Above Maternity Limit applicable (amount not found)")
+            # Look for general critical illness limit
+            general_critical_match = re.search(r'critical\s+illness.*?limit.*?Rs[\.:]?\s?([\d,]+)', text, re.IGNORECASE)
+            if general_critical_match:
+                critical_illness_limit_family = float(general_critical_match.group(1).replace(',', ''))
 
-    # === New Born Benefits from Endorsement No. 12/12a ===
-    # Extract New Born data specifically from Endorsement No. 12/12a
-    newborn_data = extract_newborn_from_endt_12(text)
+    # Extract sublimit information from the entire text (including Endt. No. 5(ii))
+    sublimit_info = extract_sublimit_info(text)
     
-    # Update the main data dictionary with New Born data
-    data.update(newborn_data)
+    # Calculate actual sublimit based on sum insured and percentage from Endt. No. 5(ii)
+    if sublimit_info["applicable"] == "Yes" and "percentage" in sublimit_info:
+        percentage_str = sublimit_info["percentage"]
+        if percentage_str == "10%" or percentage_str == "%":
+            calculated_limit = int(sum_insured * 0.10)
+        elif percentage_str == "25%":
+            calculated_limit = int(sum_insured * 0.25)
+        elif percentage_str == "5%":
+            calculated_limit = int(sum_insured * 0.05)
+        else:
+            calculated_limit = sublimit_info["limit"]
+        
+        # Apply the maximum limit constraint
+        if "max_amount" in sublimit_info:
+            sublimit_info["limit"] = min(calculated_limit, sublimit_info["max_amount"])
+        else:
+            sublimit_info["limit"] = calculated_limit
 
-    # Extract waiting period information
-    waiting_period_match = re.search(r"(\d+)\s*days\s*waiting\s*period", text, re.IGNORECASE)
-    if waiting_period_match:
-        data["Waiting Period(In Days)"] = waiting_period_match.group(1)
-        print(f"[OK] Waiting period: {waiting_period_match.group(1)} days")
+    covers = []
 
-    # Extract limit on number of children
-    children_limit_match = re.search(r"first\s*(\d+)\s*children", text, re.IGNORECASE)
-    if children_limit_match:
-        data["Maternity Limit On Number Of Live Children"] = children_limit_match.group(1)
-        data["Pre-Natal Limit On Children"] = children_limit_match.group(1)
-        data["Post-Natal Limit On Children"] = children_limit_match.group(1)
-        print(f"[OK] Limit on children: {children_limit_match.group(1)}")
+    # Add Employee as first row with ALL FIELDS
+    if employee > 0:
+        age_data = age_ranges["employee"]
+        member_type = determine_member_type(age_data["min_years"], age_data["max_years"])
+        
+        covers.append({
+            "Max No Of Members Covered": total_covered,
+            "Relationship Covered (Member Count)": total_covered,
+            "Relationship Covered": "Employee",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Count": employee,
+            "Member_Type": member_type,
+            "Sublimit_Applicable": sublimit_info["applicable"],
+            "Sublimit_Type": sublimit_info["type"],
+            "Sub_Limit": sublimit_info["limit"],
+            "Family Buffer Applicable": "Yes" if buffer_limit > 0 else "No",
+            "Family Buffer Amount": buffer_limit,
+            "Is Network Applicable": "No",
+            "Black listed hospitals are applicable?": "Yes",
 
-    # Set member contribution and deductible applicability based on extracted data
-    if data["Maternity Copay"] or data["Maternity Deductible"]:
-        data["Maternity Copay or deductible Applicable?"] = "Yes"
+            # Corporate Buffer & Additional Fields
+            "Corporate Buffer applicable": corporate_buffer_applicable,
+            "Buffer Type": "Both" if corporate_buffer_applicable == "Yes" else "",
+            "Applicable for": "Normal Illness and Critical Illness" if corporate_buffer_applicable == "Yes" else "",
+            "Total Corporate Buffer": corporate_buffer_limit_family,
+            "Corporate Buffer Limit Per Family": corporate_buffer_limit_family,
+            "Corporate Buffer Limit Per Parent": corporate_buffer_limit_parent,
+            "Reload of SI": reload_of_si,
+            "Total Corporate Buffer.1": corporate_buffer_limit_family,
+            "Corporate Buffer Limit Per Family.1": corporate_buffer_limit_family,
+            "Corporate Buffer Limit Per Parent.1": corporate_buffer_limit_parent,
+            "Reload of SI.1": reload_of_si,
+            "Approving Authority": "" if corporate_buffer_applicable == "No" else "Corporate HR",
+            "Buffer OPD Limit": buffer_opd_limit,
+            "Whether increase in sum insured permissible at renewal": "No",
+            "Total Plan Buffer": corporate_buffer_limit_family,
+            "Corporate Bufferr Limit for Employee/Family": corporate_buffer_limit_family,
+            "Corporate Buffer Limit Per Parent.2": corporate_buffer_limit_parent,
+            "Reload of SI.2": reload_of_si,
+            "Approving Authority.1": "" if corporate_buffer_applicable == "No" else "Corporate HR",
+            "Buffer OPD Limit.1": buffer_opd_limit,
+            "Whether increase in sum insured permissible at renewal.1": "No",
 
-    # Set maternity combined status
-    data["Maternity Is Combined?"] = "No"  # Default as per instructions
-    data["Maternity Is Combined? (2)"] = "No"
+            # Critical Illness Fields
+            "Critical Illness applicable": critical_illness_applicable,
+            "Critical Illness limit per family": critical_illness_limit_family,
+            "Critical Illness Approving Authority": "" if critical_illness_applicable == "No" else "Corporate HR",
+            "Critical Illness Whether increase in sum insured permissible at renewal": "No"
+        })
 
-    if "Endt. No. 11 (b) Maternity Treatment Charges Benefit Extension" in text:
-        data["Maternity Benefit Applicable?"] = "Yes"
-        print("[OK] Maternity benefits found in Endorsement 11b")
+    # Add Spouse as separate row with ONLY BASIC FIELDS
+    if spouse > 0:
+        age_data = age_ranges["spouse"]
+        member_type = determine_member_type(age_data["min_years"], age_data["max_years"])
+        
+        covers.append({
+            "Relationship Covered": "Spouse",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Type": member_type
+        })
 
-    # Extract Maternity limit from Endorsement 11b
-    maternity_limit_match = re.search(r"limited to Rs\.([\d,]+)", text, re.IGNORECASE)
-    if maternity_limit_match:
-        maternity_limit = int(maternity_limit_match.group(1).replace(",", ""))
-        data["limit"] = str(maternity_limit)
-        data["Limit"] = str(maternity_limit)
-        data["limit_2"] = str(maternity_limit)
-        data["limit amount"] = str(maternity_limit)
+    # Add Son as separate row with ONLY BASIC FIELDS
+    if children > 0:
+        age_data = age_ranges["children"]
+        member_type = determine_member_type(age_data["min_years"], age_data["max_years"])
+        
+        covers.append({
+            "Relationship Covered": "Son",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Type": member_type
+        })
 
-    sum_insured_match = re.search(r"limit of Rs\.([\d,]+)/- as Corporate floater", text, re.IGNORECASE)
-    if sum_insured_match:
-        sum_insured = int(sum_insured_match.group(1).replace(",", ""))
-        data["Sum insured"] = str(sum_insured)
-        print(f"[OK] Sum Insured: Rs. {sum_insured}")
+    # Add Daughter as separate row with ONLY BASIC FIELDS
+    if children > 0:
+        age_data = age_ranges["children"]
+        member_type = determine_member_type(age_data["min_years"], age_data["max_years"])
+        
+        covers.append({
+            "Relationship Covered": "Daughter",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Type": member_type
+        })
 
-    # Calculate % Limit for all sections if both values exist
-    if data["Sum insured"] and data["limit"]:
-        sum_insured_val = int(data["Sum insured"])
-        maternity_limit_val = int(data["limit"])
-        if maternity_limit_val > 0:
-            percentage = (sum_insured_val / maternity_limit_val) * 100
-            data["%limit"] = f"{percentage:.1f}"
-            data["%Limit"] = f"{percentage:.1f}"
-            data["%limit_2"] = f"{percentage:.1f}"
-            data["Limit Percentage"] = f"{percentage:.1f}"
-            print(f"[OK] % Limit calculated: {percentage:.1f}%")
+    # Add Parents as separate rows with ONLY BASIC FIELDS (Father, Mother, Father-in-law, Mother-in-law) if applicable
+    if dependent_parents > 0:
+        age_data = age_ranges["parents"]
+        member_type = determine_member_type(age_data["min_years"], age_data["max_years"])
+        
+        # Add Father row (from Dependent Parents)
+        covers.append({
+            "Relationship Covered": "Father",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Type": member_type
+        })
 
-    # Extract Pre & Post Natal sublimit from Special Conditions
-    opd_sublimit_match = re.search(r"sublimit of Rs\.?\s?([\d,]+)", text, re.IGNORECASE)
-    if opd_sublimit_match:
-        opd_sublimit = int(opd_sublimit_match.group(1).replace(",", ""))
-        data["limit amount"] = str(opd_sublimit)
-        print(f"[OK] Pre & Post Natal OPD sublimit: Rs. {opd_sublimit}")
+        # Add Mother row (from Dependent Parents)
+        covers.append({
+            "Relationship Covered": "Mother",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Type": member_type
+        })
 
-    # Extract Co-payment information
-    co_payment_matches = re.findall(r"(\d+)% of the admissible claim", text, re.IGNORECASE)
-    if co_payment_matches:
-        co_payment_percentage = co_payment_matches[0]
-        print(f"[OK] Co-payment: {co_payment_percentage}%")
+    # Add Parents-in-law as separate rows with ONLY BASIC FIELDS (Father-in-law and Mother-in-law) if applicable
+    if parents_in_law > 0:
+        age_data = age_ranges["parents"]
+        member_type = determine_member_type(age_data["min_years"], age_data["max_years"])
+        
+        # Add Father-in-law row (from Dependant Parents in law)
+        covers.append({
+            "Relationship Covered": "Father-in-law",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Type": member_type
+        })
 
-    # Extract waiting period information
-    waiting_period_match = re.search(r"(\d+)\s*days\s*waiting\s*period", text, re.IGNORECASE)
-    if waiting_period_match:
-        data["No.of Days"] = waiting_period_match.group(1)
-        data["no.of Days"] = waiting_period_match.group(1)
-        data["No.of Days_2"] = waiting_period_match.group(1)
-        print(f"[OK] Waiting period: {waiting_period_match.group(1)} days")
+        # Add Mother-in-law row (from Dependant Parents in law)
+        covers.append({
+            "Relationship Covered": "Mother-in-law",
+            "Min_Age(In Years)": age_data["min_years"],
+            "Min_Age(In Months)": age_data["min_months"],
+            "Max_Age(In Years)": age_data["max_years"],
+            "Max_Age(In Months)": age_data["max_months"],
+            "Member": 1,
+            "Member_Type": member_type
+        })
 
-    # Set default values for % Limit Applicable On
-    data["%Limit Applicable on"] = "Sum Insured"
-    data["%Limit Applicable on_2"] = "Sum Insured"
-    data["%Limit Applicable on_3"] = "Sum Insured"
-    data["%Limit applicable on"] = "Sum Insured"
-
-    # Set default applicability
-    data["Applicability"] = "Lower"
-    data["applicability"] = "Lower"
-    data["applicability_2"] = "Lower"
-    data["applicability_3"] = "Lower"
-
-    # Check for New Born coverage in Endorsement 12/12a
-    if "Endt. No. 12" in text or "Endt. No. 12 (a)" in text:
-        data["new born covered?"] = "Yes"
-        data["Is New Born Limit Applicable"] = "Yes"
-        print("[OK] New Born coverage found in Endorsement 12/12a")
-
-    # Set default values for New Born
-    data["covered From"] = "Day 0"
-
-    # Extract New Born limit if present
-    newborn_limit_match = re.search(r"new born.*?limit.*?Rs\.([\d,]+)", text, re.IGNORECASE)
-    if newborn_limit_match:
-        newborn_limit = int(newborn_limit_match.group(1).replace(",", ""))
-        data["limit amount"] = str(newborn_limit)
-        print(f"[OK] New Born limit: Rs. {newborn_limit}")
-
-    
-
-    return [data]
+    return covers
