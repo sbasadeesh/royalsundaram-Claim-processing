@@ -2,17 +2,15 @@
 
 ## Overview
 
-The `extract_Eligibility.py` module is designed to extract and process eligibility information from insurance policy PDFs, specifically focusing on member coverage details, age ranges, sublimits, and corporate buffer information. This module is part of a larger system for analyzing and reporting on insurance policy documents.
+The `extract_Eligibility.py` module extracts basic member eligibility information from insurance policy PDFs, focusing on member coverage details and age ranges.
 
 ## Business Logic
 
 ### Core Purpose
-The module processes insurance policy documents to extract structured eligibility data that includes:
+The module processes insurance policy documents to extract basic eligibility data:
 - **Member Coverage**: Employee, Spouse, Children, Parents
 - **Age Ranges**: Minimum and maximum ages for each member type
-- **Sublimits**: Specific coverage limits for medical conditions
-- **Corporate Buffer**: Additional coverage limits and reload options
-- **Critical Illness**: Special coverage for critical illness conditions
+- **Member Classification**: Adult or Child based on age ranges
 
 ## Key Functions
 
@@ -41,36 +39,7 @@ The module processes insurance policy documents to extract structured eligibilit
 }
 ```
 
-### 2. `extract_sublimit_info(text: str) -> Dict`
-
-**Purpose**: Extracts sublimit information from policy text, including Endt. No. 5(ii) sections.
-
-**Business Logic**:
-- Searches for sublimit patterns in policy text
-- Extracts specific medical conditions and their coverage limits
-- Calculates percentages and maximum amounts
-- Supports conditions like Cataract, Mental Illness, Balloon Sinuplasty, etc.
-
-**Supported Conditions**:
-- Cataract (10% of Sum Insured, max ₹50,000)
-- Treatment of mental illness (25% of Sum Insured, max ₹30,000)
-- Balloon Sinuplasty (10% of Sum Insured, max ₹100,000)
-- Stem Cell therapy (10% of Sum Insured, max ₹100,000)
-- Oral Chemotherapy (5% of Sum Insured, max ₹100,000)
-- And more...
-
-**Returns**: Dictionary with sublimit information:
-```python
-{
-    "applicable": "Yes/No",
-    "type": "Condition name",
-    "limit": calculated_amount,
-    "percentage": "10%/25%/5%",
-    "max_amount": maximum_limit
-}
-```
-
-### 3. `determine_member_type(min_age_years: int, max_age_years: int) -> str`
+### 2. `determine_member_type(min_age_years: int, max_age_years: int) -> str`
 
 **Purpose**: Determines if a member is classified as "Child" or "Adult" based on age range.
 
@@ -84,26 +53,7 @@ The module processes insurance policy documents to extract structured eligibilit
 - If min_age ≥ 18 → "Adult"
 - If range spans both → Calculate midpoint, classify based on midpoint
 
-### 4. `extract_corporate_buffer_applicability(text: str) -> str`
-
-**Purpose**: Checks if Endt. No. 10 (Corporate Buffer) is applicable in the policy.
-
-**Business Logic**:
-- Searches for "Endt. No. 10" or "Endorsement No. 10" in text
-- Returns "Yes" if found, "No" if not found
-
-### 5. `calculate_sublimit(sum_insured: int, percentage: str, max_amount: int) -> int`
-
-**Purpose**: Calculates actual sublimit amount based on sum insured and percentage.
-
-**Business Logic**:
-- Calculates percentage of sum insured
-- Applies maximum limit constraint
-- Supports 5%, 10%, and 25% percentages
-
-**Formula**: `min(calculated_amount, max_amount)`
-
-### 6. `extract_Eligibility(text: str) -> List[Dict]`
+### 3. `extract_Eligibility(text: str) -> List[Dict]`
 
 **Purpose**: Main function that orchestrates the entire eligibility extraction process.
 
@@ -133,169 +83,43 @@ The module processes insurance policy documents to extract structured eligibilit
 - Separate detection for dependent parents and parents-in-law
 - Defaults to 2 each (father + mother, father-in-law + mother-in-law)
 
-#### Step 3: Extract Additional Information
-**Sum Insured**:
-- Extracts from "Corporate floater" patterns
-- Falls back to general "sum insured" patterns
-- Defaults to ₹200,000 if not found
-
-**Corporate Buffer**:
-- Extracts from Endt. No. 10
-- Includes family limits, parent limits, reload options
-- Extracts OPD limits
-
-**Critical Illness**:
-- Searches for critical illness mentions
-- Extracts family limits and coverage details
-
-#### Step 4: Calculate Sublimits
-- Uses extracted sum insured and sublimit percentages
-- Applies maximum limits from policy
-- Calculates actual payable amounts
-
-#### Step 5: Generate Output
-Creates structured data for each member type:
-
-**Employee Row** (Complete with all fields):
-- Basic member information
-- Age ranges
-- Sublimit details
-- Corporate buffer information
-- Critical illness details
-- All policy-specific fields
-
-**Other Member Rows** (Basic fields only):
-- Spouse, Son, Daughter, Father, Mother, Father-in-law, Mother-in-law
-- Age ranges and member type only
+#### Step 3: Generate Output
+Creates structured data for each member type with basic fields only.
 
 ## Data Structure
 
 ### Output Format
-The function returns a list of dictionaries, each representing a covered member. The **Employee row** contains all comprehensive fields, while other member rows contain only basic fields.
+The function returns a list of dictionaries, each representing a covered member with basic fields only.
 
-#### **Employee Row (Complete Fields)**:
+#### **Basic Member Fields (12 fields)**:
 ```python
 {
-    # Basic Member Information
     "Max No Of Members Covered": total_covered,
     "Relationship Covered (Member Count)": total_covered,
-    "Relationship Covered": "Employee",
+    "Relationship Covered": "Employee/Spouse/Son/Daughter/Father/Mother/Father-in-law/Mother-in-law",
     "Min_Age(In Years)": min_age_years,
     "Min_Age(In Months)": min_age_months,
     "Max_Age(In Years)": max_age_years,
     "Max_Age(In Months)": max_age_months,
     "Member": 1,
-    "Member_Count": employee_count,
-    "Member_Type": "Adult/Child",
-    
-    # Sublimit Information
-    "Sublimit_Applicable": "Yes/No",
-    "Sublimit_Type": "Condition name (e.g., Cataract)",
-    "Sub_Limit": calculated_amount,
-    
-    # Family Buffer Information
-    "Family Buffer Applicable": "Yes/No",
-    "Family Buffer Amount": buffer_limit,
-    "Is Network Applicable": "No",
-    "Black listed hospitals are applicable?": "Yes",
-    
-    # Corporate Buffer Information
-    "Corporate Buffer applicable": "Yes/No",
-    "Buffer Type": "Both" if applicable else "",
-    "Applicable for": "Normal Illness and Critical Illness" if applicable else "",
-    "Total Corporate Buffer": corporate_buffer_limit_family,
-    "Corporate Buffer Limit Per Family": corporate_buffer_limit_family,
-    "Corporate Buffer Limit Per Parent": corporate_buffer_limit_parent,
-    "Reload of SI": reload_option,
-    "Total Corporate Buffer.1": corporate_buffer_limit_family,
-    "Corporate Buffer Limit Per Family.1": corporate_buffer_limit_family,
-    "Corporate Buffer Limit Per Parent.1": corporate_buffer_limit_parent,
-    "Reload of SI.1": reload_option,
-    "Approving Authority": "Corporate HR" if applicable else "",
-    "Buffer OPD Limit": buffer_opd_limit,
-    "Whether increase in sum insured permissible at renewal": "No",
-    "Total Plan Buffer": corporate_buffer_limit_family,
-    "Corporate Bufferr Limit for Employee/Family": corporate_buffer_limit_family,
-    "Corporate Buffer Limit Per Parent.2": corporate_buffer_limit_parent,
-    "Reload of SI.2": reload_option,
-    "Approving Authority.1": "Corporate HR" if applicable else "",
-    "Buffer OPD Limit.1": buffer_opd_limit,
-    "Whether increase in sum insured permissible at renewal.1": "No",
-    
-    # Critical Illness Information
-    "Critical Illness applicable": "Yes/No",
-    "Critical Illness limit per family": critical_illness_limit,
-    "Critical Illness Approving Authority": "Corporate HR" if applicable else "",
-    "Critical Illness Whether increase in sum insured permissible at renewal": "No"
-}
-```
-
-#### **Other Member Rows (Basic Fields Only)**:
-```python
-{
-    "Relationship Covered": "Spouse/Son/Daughter/Father/Mother/Father-in-law/Mother-in-law",
-    "Min_Age(In Years)": min_age_years,
-    "Min_Age(In Months)": min_age_months,
-    "Max_Age(In Years)": max_age_years,
-    "Max_Age(In Months)": max_age_months,
-    "Member": 1,
+    "Member_Count": member_count,
     "Member_Type": "Adult/Child"
 }
 ```
 
-#### **Complete Field List for Employee Row**:
+#### **Field Descriptions**:
 
-**Basic Member Fields:**
+**Basic Member Fields (12 fields):**
 - `Max No Of Members Covered` - Total members covered under the policy
 - `Relationship Covered (Member Count)` - Same as above
-- `Relationship Covered` - "Employee"
+- `Relationship Covered` - Member type (Employee, Spouse, Son, Daughter, Father, Mother, Father-in-law, Mother-in-law)
 - `Min_Age(In Years)` - Minimum age in years
 - `Min_Age(In Months)` - Minimum age in months
 - `Max_Age(In Years)` - Maximum age in years
 - `Max_Age(In Months)` - Maximum age in months
 - `Member` - Always 1 for individual members
-- `Member_Count` - Number of employees covered
-- `Member_Type` - "Adult" or "Child"
-
-**Sublimit Fields:**
-- `Sublimit_Applicable` - "Yes" or "No"
-- `Sublimit_Type` - Specific condition (e.g., "Cataract", "Mental Illness")
-- `Sub_Limit` - Calculated sublimit amount
-
-**Family Buffer Fields:**
-- `Family Buffer Applicable` - "Yes" or "No"
-- `Family Buffer Amount` - Buffer limit amount
-- `Is Network Applicable` - Always "No"
-- `Black listed hospitals are applicable?` - Always "Yes"
-
-**Corporate Buffer Fields:**
-- `Corporate Buffer applicable` - "Yes" or "No"
-- `Buffer Type` - "Both" if applicable, empty if not
-- `Applicable for` - "Normal Illness and Critical Illness" if applicable
-- `Total Corporate Buffer` - Total buffer amount
-- `Corporate Buffer Limit Per Family` - Family limit
-- `Corporate Buffer Limit Per Parent` - Parent limit
-- `Reload of SI` - Reload option (e.g., "No limit for the reload of SI")
-- `Total Corporate Buffer.1` - Duplicate of total buffer
-- `Corporate Buffer Limit Per Family.1` - Duplicate of family limit
-- `Corporate Buffer Limit Per Parent.1` - Duplicate of parent limit
-- `Reload of SI.1` - Duplicate of reload option
-- `Approving Authority` - "Corporate HR" if applicable, empty if not
-- `Buffer OPD Limit` - OPD limit amount
-- `Whether increase in sum insured permissible at renewal` - Always "No"
-- `Total Plan Buffer` - Same as total corporate buffer
-- `Corporate Bufferr Limit for Employee/Family` - Same as family limit
-- `Corporate Buffer Limit Per Parent.2` - Duplicate of parent limit
-- `Reload of SI.2` - Duplicate of reload option
-- `Approving Authority.1` - Duplicate of approving authority
-- `Buffer OPD Limit.1` - Duplicate of OPD limit
-- `Whether increase in sum insured permissible at renewal.1` - Always "No"
-
-**Critical Illness Fields:**
-- `Critical Illness applicable` - "Yes" or "No"
-- `Critical Illness limit per family` - Critical illness limit amount
-- `Critical Illness Approving Authority` - "Corporate HR" if applicable, empty if not
-- `Critical Illness Whether increase in sum insured permissible at renewal` - Always "No"
+- `Member_Count` - Number of members of this type covered
+- `Member_Type` - "Adult" or "Child" based on age classification
 
 ## Key Features
 
@@ -304,15 +128,15 @@ The function returns a list of dictionaries, each representing a covered member.
 - Fallback mechanisms when primary patterns fail
 - Support for various PDF formats and layouts
 
-### 2. Dynamic Calculation
-- Calculates actual sublimit amounts based on sum insured
-- Applies percentage and maximum constraints
-- Handles different percentage types (5%, 10%, 25%)
+### 2. Dynamic Age Extraction
+- Extracts age ranges from policy text
+- Supports different age formats and units
+- Handles various member types
 
-### 3. Comprehensive Coverage
-- Extracts all member types (Employee, Spouse, Children, Parents)
-- Includes age ranges, member counts, and coverage details
-- Captures corporate buffer and critical illness information
+### 3. Member Classification
+- Automatically classifies members as Adult or Child
+- Uses age-based logic for classification
+- Handles edge cases with midpoint calculation
 
 ### 4. Error Handling
 - Graceful fallbacks when sections not found
@@ -337,7 +161,7 @@ eligibility_data = extract_Eligibility(policy_text)
 for member in eligibility_data:
     print(f"Member: {member['Relationship Covered']}")
     print(f"Age Range: {member['Min_Age(In Years)']}-{member['Max_Age(In Years)']}")
-    print(f"Sublimit: {member['Sub_Limit']}")
+    print(f"Member Type: {member['Member_Type']}")
 ```
 
 ## Debug Information
@@ -357,8 +181,8 @@ This helps identify what information was successfully extracted and troubleshoot
 ## Business Impact
 
 This module is critical for:
-- **Policy Analysis**: Understanding coverage details and limitations
-- **Risk Assessment**: Evaluating sublimits and coverage amounts
+- **Policy Analysis**: Understanding member coverage details
+- **Age Classification**: Determining Adult vs Child members
 - **Compliance**: Ensuring all required fields are captured
 - **Reporting**: Generating structured data for business intelligence
 - **Automation**: Reducing manual processing of policy documents
