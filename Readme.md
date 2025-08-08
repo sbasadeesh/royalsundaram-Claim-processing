@@ -1,6 +1,5 @@
 
-
-# extract_primary_data.py - Epic Documentation 2.1 to 2.2
+Epic Documentation 2.1 to 2.2
 
 ## Overview
 
