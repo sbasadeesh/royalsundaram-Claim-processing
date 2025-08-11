@@ -16,3 +16,5 @@ Business Logic: Reads the data type rules (e.g., Numeric, Text, Binary(Yes/No)) 
 Live Code Location: src/excel_validator.py
 
 Direct Code Link: https://github.com/sbasadeesh/royalsundaram-Claim-processing/blob/Testing/main.py
+
+Output File : [EPIC_1.1_Validation_Report_11-08-2025_05-58.xlsx](https://github.com/user-attachments/files/21709914/EPIC_1.1_Validation_Report_11-08-2025_05-58.xlsx)
