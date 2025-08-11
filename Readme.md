@@ -8,11 +8,11 @@ Business Logic: Compares the header text in Row 3 of the input template against 
 
 Live Code Location: src/excel_validator.py
 
-Direct Code Link: 
+Direct Code Link: https://github.com/sbasadeesh/royalsundaram-Claim-processing/blob/Testing/main.py
 
 V-1.2: Data Type Validation
 Business Logic: Reads the data type rules (e.g., Numeric, Text, Binary(Yes/No)) from Row 4 of the input template. It then validates every data cell from Row 4 downwards in the output file to ensure it conforms to the corresponding rule.
 
 Live Code Location: src/excel_validator.py
 
-Direct Code Link: View Function compare_excel_files() on GitHub (Note: This is a placeholder link that needs to be updated with your actual repository URL.)
+Direct Code Link: https://github.com/sbasadeesh/royalsundaram-Claim-processing/blob/Testing/main.py
