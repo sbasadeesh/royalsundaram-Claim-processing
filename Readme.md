@@ -16,4 +16,4 @@ Doctor & Nurse Home Visit Cover (Endt. No. 17)
 
 Live Code Location: create_addon.py
 
-Direct Code Link: https://github.com/sbasadeesh/royalsundaram-Claim-processing/blob/main/main.py
+Direct Code Link: https://github.com/sbasadeesh/royalsundaram-Claim-processing/blob/main/create_addon.py
