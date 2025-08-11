@@ -12,7 +12,7 @@ This README is the central catalog of business rules. Each epic links to the liv
 
 *   **Live Code Location:** `extract_Eligibility.py`
 
-*   **Direct Code Link:** **[View Function `extract_Eligibility()` on GitHub]()**
+*   **Direct Code Link:** **[View Function `extract_Eligibility()` on GitHub](https://github.com/sbasadeesh/royalsundaram-Claim-processing/tree/Epic1.3)**
 
 #### Corporate Buffer Extraction (Lines 533-572)
 
