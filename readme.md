@@ -1,36 +1,37 @@
-Epic-2.1: 
-Business Logic:
-Determines whether the maternity benefit is applicable based on “Endorsement No. 11(b) Maternity Treatment Charges Benefit Extension” or other references in the policy text.
-The Benefit Applicable? field defaults to "Yes" regardless of whether the endorsement section is found, ensuring that benefits are treated as applicable unless the extraction logic explicitly sets it to "No".
-This value is later used by other benefit-specific calculations and display logic in the system.
+Epic 2.2: Pre & Post Hospitalisation – Combined Benefit
+Business Logic: Detects if the policy specifies that Pre and Post Hospitalisation expenses share a single combined limit.
 
-Live Code Location:
-extract_primary_data.py → extract_maternity_from_endt_11b()
+Benefit Applicable? → "Yes" if “pre and post hospitalisation combined” phrase is found in policy text.
 
-Direct Code Link:
-View Function extract_maternity_from_endt_11b() on GitHub
+Is Pre and Post Combined? → Always "Yes" for this case.
 
-Code Snippet
+Type Of Expense → "Pre & Post Hospitalisation Expense".
+
+No. Of Days → Left blank (limit applies collectively, not per duration).
+
+% Limit Applicable On → "Sum Insured".
+
+% Limit → "100".
+
+Limit → Left blank (derived from overall sum insured).
+
+Applicability → "Lower".
+
+Live Code Location: extract_primary_data.py → extract_primary_data() (Combined Pre & Post Hospitalisation section)
+
+Direct Code Link: View on GitHub
+
+Code Snippet:
 python
 Copy
 Edit
-def extract_maternity_from_endt_11b(text: str) -> Dict:
-    """Extract maternity data specifically from Endorsement No. 11(b)"""
-    maternity_data = {
-        "Benefit Applicable?": "Yes",  # Always defaults to "Yes"
-        ...
-    }
-
-    endorsement_11b_match = re.search(
-        r'Endt\.\s*No\.\s*11\s*\(b\)\s*Maternity Treatment Charges Benefit Extension.*?(?=Endt\.\s*No\.|Endorsement\s*No\.|Group Health Policy|$)',
-        text, re.IGNORECASE | re.DOTALL
-    )
-
-    if not endorsement_11b_match:
-        # Even if section not found, keep default "Yes"
-        return maternity_data
-
-    # Additional extraction logic...
-    return maternity_data
-
-Direct Code Link: [View Function extract_maternity_from_endt_11b() on GitHu](https://github.com/sbasadeesh/royalsundaram-Claim-processing/blob/Epic2.1/extract_primary_data.py)b
+# === PRE & POST HOSPITALISATION COMBINED BENEFIT SECTION ===
+if re.search(r'pre\s*and\s*post\s*hospitalisation\s*combined', policy_text, re.IGNORECASE):
+    data["Benefit Applicable?"] = "Yes"
+    data["Is Pre and Post Combined?"] = "Yes"
+    data["Type Of Expense"] = "Pre & Post Hospitalisation Expense"
+    data["No. Of Days"] = ""
+    data["% Limit Applicable On"] = "Sum Insured"
+    data["% Limit"] = "100"
+    data["Limit"] = ""
+    data["Applicability"] = "Lower"
