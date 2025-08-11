@@ -1,4 +1,4 @@
-Epic P-2.2: Primary Covers
+Epic2.2: Primary Covers
 Pre & Post Hospitalisation Benefit
 Business Logic: Dynamically extracts Pre Hospitalisation and Post Hospitalisation details from the “Special Clauses” section of the policy document.
 
@@ -49,3 +49,7 @@ if re.search(r'Post\s+Hospitalisation\s+Expenses', special_clauses_text, re.IGNO
     data["Limit Percentage 2"] = "100"
     data["Applicability 2"] = "Lower"
     print("[OK] Post Hospitalisation fields populated from Special Clauses")
+
+
+
+    code link: https://github.com/sbasadeesh/royalsundaram-Claim-processing/blob/Epic2.2/extract_primary_data.py
