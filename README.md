@@ -28,6 +28,14 @@ This README is the central catalog of business rules. Each epic links to the liv
 - **Reload Logic:** Detects "per person limit" patterns to set reload options
 - **OPD Buffer:** Searches for "buffer opd limit" with monetary values
 
+**Reload SI Pattern Mapping:**
+- "equivalent to the Per person limit" → "Reload of SI is up to the Existing SI"
+- "Double to the Per person limit" → "Reload of SI is up to the Double the SI"
+- "Thrice to the Per person limit" → "Reload of SI is up to the Thrice the SI"
+- If none of these patterns are found → "No limit for the reload of SI"
+
+*The code correctly searches for these specific phrases in Endorsement 10 and maps them to the appropriate reload SI values as per business requirements.*
+
 **Field Mapping:**
 ```python
 "Total Plan Buffer": corporate_buffer_limit_family,
@@ -70,3 +78,4 @@ This README is the central catalog of business rules. Each epic links to the liv
 - Corporate buffer fields populated only when `corporate_buffer_applicable == "Yes"`
 - Critical illness authority assigned only when `critical_illness_applicable != "No"`
 - Monetary values extracted as integers with comma removal: `int(match.group(1).replace(',', ''))`
+
