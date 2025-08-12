@@ -563,22 +563,40 @@ def extract_Eligibility(text: str) -> List[Dict]:
             
             # Extract Reload of SI options - Per person limit pattern
             if re.search(r'per\s+person\s+limit', endorsement_10_text, re.IGNORECASE):
-                reload_of_si = "Reload of SI is up to the Existing SI"
+                equivalent_pattern = r'equivalent\s+to\s+the\s+per\s+person\s+limit'
+                double_pattern = r'double\s+to\s+the\s+per\s+person\s+limit'
+                thrice_pattern = r'thrice\s+to\s+the\s+per\s+person\s+limit'
+
+                has_equivalent = re.search(equivalent_pattern, endorsement_10_text, re.IGNORECASE)
+                has_double = re.search(double_pattern, endorsement_10_text, re.IGNORECASE)
+                has_thrice = re.search(thrice_pattern, endorsement_10_text, re.IGNORECASE)
+
+                # Check for specific patterns
+                if has_equivalent:
+                    reload_of_si = "Reload of SI is up to the Existing SI"
+                elif has_double:
+                    reload_of_si = "Reload of SI is up to the Double the SI"
+                elif has_thrice:
+                    reload_of_si = "Reload of SI is up to the Thrice the SI"
+                else:
+                    reload_of_si = "No limit for the reload of SI"
             
             # Extract Buffer OPD Limit
             opd_limit_match = re.search(r'buffer\s+opd\s+limit.*?Rs[\.:]?\s?([\d,]+)', endorsement_10_text, re.IGNORECASE)
             if opd_limit_match:
                 buffer_opd_limit = int(opd_limit_match.group(1).replace(',', ''))
 
-    # Extract Critical Illness values
-    critical_illness_applicable = "No"
+    # Extract Critical Illness values based on Corporate Buffer logic
     critical_illness_limit_family = 0.0
     
-    # Look for Critical Illness in the policy text
-    if re.search(r'critical\s+illness', text, re.IGNORECASE):
-        critical_illness_applicable = "Yes"
-        
-        # Extract Critical Illness limit per family
+    # Determine Critical Illness applicable based on Corporate Buffer status
+    if corporate_buffer_applicable == "Yes":
+        critical_illness_applicable = ""  # Empty if Corporate Buffer is Yes
+    else:
+        critical_illness_applicable = "No"  # No if Corporate Buffer is empty/No
+    
+    # Extract Critical Illness limit per family only if applicable
+    if critical_illness_applicable != "No":
         critical_limit_match = re.search(r'critical\s+illness\s+limit\s+per\s+family.*?Rs[\.:]?\s?([\d,]+)', text, re.IGNORECASE)
         if critical_limit_match:
             critical_illness_limit_family = float(critical_limit_match.group(1).replace(',', ''))
@@ -603,13 +621,13 @@ def extract_Eligibility(text: str) -> List[Dict]:
             "Max No Of Members Covered": total_covered,
             "Relationship Covered (Member Count)": total_covered,
             "Relationship Covered": "Employee",
-            "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+            "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
             "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
             "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
             "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
             "Member_Count": employee,
             "Member_Type": member_type,
-            "Sublimit_Applicable": "Yes" if all_sublimits else "No",
+            "Sublimit_Applicable": "Yes" if all_sublimits else "",
             "Sublimit_Type": all_sublimits[0]["type"] if all_sublimits else "",  # First sublimit type
             "Sub_Limit": str(all_sublimits[0]["limit"]) if all_sublimits else "",  # First sublimit amount
             "Family Buffer Applicable": corporate_buffer_applicable,
@@ -637,69 +655,18 @@ def extract_Eligibility(text: str) -> List[Dict]:
             "Corporate Buffer Limit Per Parent.2": corporate_buffer_limit_family if corporate_buffer_applicable == "Yes" !=0 else "",
             "Reload of SI.2": reload_of_si if corporate_buffer_applicable == "Yes" !=0 else "",
             "Approving Authority.1": "Corporate HR" if corporate_buffer_applicable == "Yes" !=0 else "",
-            "Buffer OPD Limit.1": buffer_opd_limit if corporate_buffer_applicable == "Yes" !=0 else "",
+            "Buffer OPD Limit.1": buffer_opd_limit if corporate_buffer_applicable == "Yes" and buffer_opd_limit != 0 else "",
             "Whether increase in sum insured permissible at renewal.1": "No" if corporate_buffer_applicable == "Yes" !=0 else "",
 
             # Critical Illness Fields
             "Critical Illness applicable": critical_illness_applicable,
             "Critical Illness limit per family": "",
-            "Critical Illness Approving Authority": "" if critical_illness_applicable == "No" else "Corporate HR",
+            "Critical Illness Approving Authority": "",
             "Critical Illness Whether increase in sum insured permissible at renewal": ""
         }
         covers.append(main_employee_row)
 
-        # # Add additional rows for remaining sublimits (if more than one sublimit exists)
-        # # This should be OUTSIDE the employee condition to ensure it runs
-        # if all_sublimits and len(all_sublimits) > 1:
-        #     for sublimit in all_sublimits[1:]:  # Start from second sublimit (index 1)
-        #         additional_sublimit_row = {
-        #             "Max No Of Members Covered": "",
-        #             "Relationship Covered (Member Count)": "",
-        #             "Relationship Covered": "Employee",
-        #             "Min_Age(In Years)": "",
-        #             "Min_Age(In Months)": "",
-        #             "Max_Age(In Years)": "",
-        #             "Max_Age(In Months)": "",
-        #             "Member_Count": "",
-        #             "Member_Type": "",
-        #             "Sublimit_Applicable": "Yes",
-        #             "Sublimit_Type": sublimit["type"],
-        #             "Sub_Limit": str(sublimit["limit"]),
-        #             "Family Buffer Applicable": "",
-        #             "Family Buffer Amount": "",
-        #             "Is Network Applicable": "",
-        #             "Black listed hospitals are applicable?": "",
 
-        #             # Corporate Buffer & Additional Fields - All empty for additional rows
-        #             "Corporate Buffer applicable": "",
-        #             "Buffer Type": "",
-        #             "Applicable for": "",
-        #             "Total Corporate Buffer": "",
-        #             "Corporate Buffer Limit Per Family": "",
-        #             "Corporate Buffer Limit Per Parent": "",
-        #             "Reload of SI": "",
-        #             "Total Corporate Buffer.1": "",
-        #             "Corporate Buffer Limit Per Family.1": "",
-        #             "Corporate Buffer Limit Per Parent.1": "",
-        #             "Reload of SI.1": "",
-        #             "Approving Authority": "",
-        #             "Buffer OPD Limit": "",
-        #             "Whether increase in sum insured permissible at renewal": "",
-        #             "Total Plan Buffer": "",
-        #             "Corporate Bufferr Limit for Employee/Family": "",
-        #             "Corporate Buffer Limit Per Parent.2": "",
-        #             "Reload of SI.2": "",
-        #             "Approving Authority.1": "",
-        #             "Buffer OPD Limit.1": "",
-        #             "Whether increase in sum insured permissible at renewal.1": "",
-
-        #             # Critical Illness Fields - All empty for additional rows
-        #             "Critical Illness applicable": "",
-        #             "Critical Illness limit per family": "",
-        #             "Critical Illness Approving Authority": "",
-        #             "Critical Illness Whether increase in sum insured permissible at renewal": ""
-        #         }
-        #         covers.append(additional_sublimit_row)
 
         # SPOUSE ROW - Basic information only
         if spouse > 0:
@@ -709,7 +676,7 @@ def extract_Eligibility(text: str) -> List[Dict]:
             spouse_row = get_complete_row_template()
             spouse_row.update({
                 "Relationship Covered": "Spouse",
-                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
                 "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
                 "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
                 "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
@@ -728,7 +695,7 @@ def extract_Eligibility(text: str) -> List[Dict]:
             son_row = get_complete_row_template()
             son_row.update({
                 "Relationship Covered": "Son",
-                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
                 "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
                 "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
                 "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
@@ -746,7 +713,7 @@ def extract_Eligibility(text: str) -> List[Dict]:
             daughter_row = get_complete_row_template()
             daughter_row.update({
                 "Relationship Covered": "Daughter",
-                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
                 "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
                 "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
                 "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
@@ -760,11 +727,11 @@ def extract_Eligibility(text: str) -> List[Dict]:
         if dependent_parents > 0:
             age_data = age_ranges["parents"]
             member_type = determine_member_type(age_data["min_years"], age_data["max_years"])
-            
+
             father_row = get_complete_row_template()
             father_row.update({
                 "Relationship Covered": "Father",
-                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
                 "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
                 "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
                 "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
@@ -778,7 +745,7 @@ def extract_Eligibility(text: str) -> List[Dict]:
             mother_row = get_complete_row_template()
             mother_row.update({
                 "Relationship Covered": "Mother",
-                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
                 "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
                 "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
                 "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
@@ -796,7 +763,7 @@ def extract_Eligibility(text: str) -> List[Dict]:
             father_in_law_row = get_complete_row_template()
             father_in_law_row.update({
                 "Relationship Covered": "Father-in-law",
-                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
                 "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
                 "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
                 "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
@@ -810,7 +777,7 @@ def extract_Eligibility(text: str) -> List[Dict]:
             mother_in_law_row = get_complete_row_template()
             mother_in_law_row.update({
                 "Relationship Covered": "Mother-in-law",
-                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"] != 0 else "",
+                "Min_Age(In Years)": age_data["min_years"] if age_data["min_years"]  else "0",
                 "Min_Age(In Months)": age_data["min_months"] if age_data["min_months"] != 0 else "",
                 "Max_Age(In Years)": age_data["max_years"] if age_data["max_years"] != 0 else "",
                 "Max_Age(In Months)": age_data["max_months"] if age_data["max_months"] != 0 else "",
