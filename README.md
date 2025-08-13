@@ -8,11 +8,11 @@ This README is the central catalog of business rules. Each epic links to the liv
 
 ### EPIC 1.3: Advanced Buffer & Critical Illness Configuration (X-AO)
 
-*   **Business Logic:** Extracts comprehensive corporate buffer and critical illness configuration from insurance policy documents. Processes Endorsement No. 10 for corporate buffer details and scans the entire policy text for critical illness provisions.
+*   **Business Logic:** Extracts Sublimit_type and Sublimt from insurance policy documents. Processes Endorsement No. 5(i) and 5(ii) for 
 
 *   **Live Code Location:** `extract_Eligibility.py`
 
-*   **Direct Code Link:** **[View Function `extract_Eligibility()` on GitHub](https://github.com/your-org/your-repo/blob/main/extract_Eligibility.py#L373-L834)**
+*   **Direct Code Link:** **[View Function `extract_Eligibility()` on GitHub]([https://github.com/your-org/your-repo/blob/main/extract_Eligibility.py#L373-L834](https://github.com/sbasadeesh/royalsundaram-Claim-processing/tree/Epic1.2))**
 
 #### Core Field Logic Documentation
 
