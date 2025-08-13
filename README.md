@@ -165,65 +165,29 @@ Return Value: It returns a list of dictionaries, where each dictionary represent
   thrice_pattern = r'thrice\s+to\s+the\s+per\s+person\s+limit'
   ```
 
-**Business Rules:**
-- **Default Value:** "No limit for the reload of SI"
-- **Pattern Mapping:**
-  - "equivalent to the Per person limit" → "Reload of SI is up to the Existing SI"
-  - "Double to the Per person limit" → "Reload of SI is up to the Double the SI"
-  - "Thrice to the Per person limit" → "Reload of SI is up to the Thrice the SI"
-- **Employee Row:** Only populated in Employee row
-- **Other Members:** Empty for all other member types
+Sublimit terminal output
 
-#### Row Structure Logic
-
-**Employee Row (Primary):**
-- Contains ALL comprehensive data including first sublimit
-- Corporate buffer fields populated when applicable
-- Critical illness fields populated when applicable
-- Network and blacklist fields set to fixed values
-
-**Additional Employee Rows (Sublimits):**
-- Created for each additional sublimit beyond the first
-- Contains only sublimit-specific data (Sublimit_Type, Sub_Limit)
-- All other fields remain empty
-
-**Family Member Rows (Spouse, Children, Parents):**
-- Basic demographic information only (age ranges, member counts)
-- Sublimit_Applicable set to "yes" but no specific sublimit data
-- All corporate buffer and critical illness fields remain empty
-- Network and blacklist fields remain empty
-
----
-
-## Epic Template
-
-### E1.3 - Advanced Buffer & Critical Illness Configuration
-
----
-
-✅ 1. Description & Logic Location
-
-- **Description:** Extracts comprehensive corporate buffer and critical illness configuration from insurance policy documents. Processes Endorsement No. 10 for corporate buffer details and scans the entire policy text for critical illness provisions.
-- **README Link:** [Link to README Section](#epic-13-advanced-buffer--critical-illness-configuration-x-ao)
-
----
-
-✅ 2. Mandatory Pre-Submission Checklist
-
-- [ ] 100% Accuracy: Output matches the official test data (values, types, formats).
-- [ ] 100% Performance: Performance tests for this entire Epic have passed.
-- [ ] README Updated: The `README.md` file is updated with this epic's logic.
-- [ ] Queries Logged: All questions have been documented in Odoo as required.
-
----
-
-✅ 3. Evidence
-
-- **Accuracy Report:** (Attach screenshot showing matching values)
-- **Performance Report:** (Attach screenshot showing 100% score)
-
----
-
-✅ 4. Reviewers
-
-Ready for review by @Sadeesh and @Venkatesh
+[DEBUG] Found percentage: 10%
+[DEBUG] Found amount in context: 100000 
+[DEBUG] Calculated amount using 10%: 50000, max: 100000, final: 50000
+[DEBUG] Searching for Stem Cell therapy...
+[DEBUG] Will test 9 patterns
+[DEBUG] Pattern 1 did not match for Stem Cell therapy
+[DEBUG] Pattern 2 did not match for Stem Cell therapy
+[DEBUG] Found condition: Stem Cell therapy
+[DEBUG] Found percentage: 10%
+[DEBUG] Found amount in context: 100000 
+[DEBUG] Calculated amount using 10%: 50000, max: 100000, final: 50000
+[DEBUG] Found condition: Oral Chemotherapy, Immunotherapy(monoclonal antibody to be given as injection)
+[DEBUG] Found percentage: 5%
+[DEBUG] Found amount in context: 100000 
+[DEBUG] Calculated amount using 5%: 25000, max: 100000, final: 25000
+[DEBUG] Total sublimits extracted: 4    
+[DEBUG] 1. Type: 'Treatment of mental illness, stress or psychological disorders and neurodegenerative disorders', Limit: '30000'
+[DEBUG] 2. Type: 'Balloon Sinsuplasty, bronchical thermoplasty, vaporization of prostate(green laser treatment), intra operative neuro monitoring, Intra vitreal injections', Limit: '50000'
+[DEBUG] 3. Type: 'Stem Cell therapy', Limit: '50000'
+[DEBUG] 4. Type: 'Oral Chemotherapy, Immunotherapy(monoclonal antibody to be given as injection)', Limit: '25000'       
+[DEBUG] Missing conditions: ['Cataract']
+[DEBUG] Corrected mental illness amount for Treatment of mental illness: 30000  
+[DEBUG] Corrected mental illness amount for stress or psychological disorders: 30000
+[DEBUG] Corrected mental illness amount for neurodegenerative disorders: 30000  
