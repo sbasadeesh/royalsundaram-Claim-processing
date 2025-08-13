@@ -1,4 +1,5 @@
 Epic 3.4: Doctor's Home Visit & Nursing Charges in Addon Coverages
+
 Business Logic: This epic expands the addon coverage extraction system. It introduces the logic to process Endt. No. 17 - Home Nursing Allowance and integrates it alongside the existing Ambulance and Convalescence benefits. The process is as follows:
 
 Status Identification: The system first checks for the presence of Endt. No. 17 in the policy text to determine if the "Doctor Nurse Home Visit Cover" is active. This is handled in the create_addon.py file.
