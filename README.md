@@ -4,9 +4,9 @@ This README is the central catalog of business rules. Each epic links to the liv
 
 ---
 
-## Epic E-1.0: Eligibility
+## Epic E-1.2: Eligibility
 
-### EPIC 1.3: Advanced Buffer & Critical Illness Configuration (X-AO)
+### EPIC 1.2: Sublimit & Buffer Configuration (K -W)
 
 *   **Business Logic:** Extracts Sublimit_type and Sublimt from insurance policy documents. Processes Endorsement No. 5(i) and 5(ii) for 
 
