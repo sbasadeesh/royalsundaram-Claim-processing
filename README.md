@@ -165,29 +165,4 @@ Return Value: It returns a list of dictionaries, where each dictionary represent
   thrice_pattern = r'thrice\s+to\s+the\s+per\s+person\s+limit'
   ```
 
-Sublimit terminal output
 
-[DEBUG] Found percentage: 10%
-[DEBUG] Found amount in context: 100000 
-[DEBUG] Calculated amount using 10%: 50000, max: 100000, final: 50000
-[DEBUG] Searching for Stem Cell therapy...
-[DEBUG] Will test 9 patterns
-[DEBUG] Pattern 1 did not match for Stem Cell therapy
-[DEBUG] Pattern 2 did not match for Stem Cell therapy
-[DEBUG] Found condition: Stem Cell therapy
-[DEBUG] Found percentage: 10%
-[DEBUG] Found amount in context: 100000 
-[DEBUG] Calculated amount using 10%: 50000, max: 100000, final: 50000
-[DEBUG] Found condition: Oral Chemotherapy, Immunotherapy(monoclonal antibody to be given as injection)
-[DEBUG] Found percentage: 5%
-[DEBUG] Found amount in context: 100000 
-[DEBUG] Calculated amount using 5%: 25000, max: 100000, final: 25000
-[DEBUG] Total sublimits extracted: 4    
-[DEBUG] 1. Type: 'Treatment of mental illness, stress or psychological disorders and neurodegenerative disorders', Limit: '30000'
-[DEBUG] 2. Type: 'Balloon Sinsuplasty, bronchical thermoplasty, vaporization of prostate(green laser treatment), intra operative neuro monitoring, Intra vitreal injections', Limit: '50000'
-[DEBUG] 3. Type: 'Stem Cell therapy', Limit: '50000'
-[DEBUG] 4. Type: 'Oral Chemotherapy, Immunotherapy(monoclonal antibody to be given as injection)', Limit: '25000'       
-[DEBUG] Missing conditions: ['Cataract']
-[DEBUG] Corrected mental illness amount for Treatment of mental illness: 30000  
-[DEBUG] Corrected mental illness amount for stress or psychological disorders: 30000
-[DEBUG] Corrected mental illness amount for neurodegenerative disorders: 30000  
