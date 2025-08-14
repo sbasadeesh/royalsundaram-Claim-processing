@@ -1,4 +1,6 @@
 Excel Validator Automation Project
+
+
 This README is the central catalog of business rules for the Excel Validator application. Each epic links to the live code that implements its specific logic.
 
 Epic E-1.0: Core Validation Engine
